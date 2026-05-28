@@ -527,7 +527,6 @@ async function selectTable(table, database = selectedDatabase.value, profileId =
   addLog('info', 'Select table', logContext({profile: activeProfileName(profileId), database, table: selectedTable.value}))
   setExpanded(true, 'database', profileId, database)
   setExpanded(true, 'tables', profileId, database)
-  setExpanded(true, 'table', profileId, database, selectedTable.value)
   await loadTableMetadata(profileId, database, selectedTable.value)
   openDataTab(profileId, database, selectedTable.value)
 }
@@ -1011,7 +1010,6 @@ async function connectSelected() {
       tableData.value = demoTableData()
       setExpanded(true, 'database', profileId, 'demo')
       setExpanded(true, 'tables', profileId, 'demo')
-      setExpanded(true, 'table', profileId, 'demo', 'users')
       await loadTableMetadata(profileId, 'demo', 'users')
       await nextTick()
       suppressDatabaseWatch.value = false
@@ -1034,7 +1032,6 @@ async function connectSelected() {
       setExpanded(true, 'database', profileId, selectedDatabase.value)
       setExpanded(true, 'tables', profileId, selectedDatabase.value)
       if (selectedTable.value) {
-        setExpanded(true, 'table', profileId, selectedDatabase.value, selectedTable.value)
         await loadTableMetadata(profileId, selectedDatabase.value, selectedTable.value)
       }
     }
