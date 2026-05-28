@@ -1,17 +1,13 @@
 import {computed, nextTick, ref} from 'vue'
 import {
-  ChoosePrivateKeyPath,
   Connect,
-  DeleteCredentials,
   DisconnectProfile,
   ListDatabases,
-  LoadCredentials,
-  SaveCredentials,
-  Status,
-  TestConnection
+  Status
 } from '../../wailsjs/go/main/App'
-
-const STORAGE_KEY = 'mysql-gui.profiles'
+import {cloneProfile} from './connectionProfileUtils'
+import {useConnectionProfiles} from './useConnectionProfiles'
+import {useConnectionState} from './useConnectionState'
 
 export function useConnections({
   currentTab,
@@ -39,67 +35,59 @@ export function useConnections({
   perfStart,
   elapsedSince
 }) {
-  const profiles = ref([])
   const selectedProfileId = ref('')
-  const connectedProfileId = ref('')
-  const status = ref({connected: false})
-  const connectionStates = ref({})
-  const databases = ref([])
-  const tableCache = ref({})
-
-  const profileDialogOpen = ref(false)
-  const draftProfile = ref(emptyProfile(newId))
-  const editingProfileId = ref('')
-  const profileDialogTab = ref('general')
-  const testConnectionState = ref({status: 'idle', message: ''})
+  const {
+    profiles,
+    profileDialogOpen,
+    draftProfile,
+    editingProfileId,
+    profileDialogTab,
+    testConnectionState,
+    initializeProfileStore,
+    openNewProfileDialog,
+    openEditProfileDialog,
+    testDraftConnection,
+    choosePrivateKeyPath,
+    saveProfile,
+    removeProfile
+  } = useConnectionProfiles({
+    addLog,
+    askConfirm,
+    errorMessage,
+    hasRuntime,
+    logContext,
+    newId,
+    selectedProfileId,
+    setMessage
+  })
+  const {
+    connectedProfileId,
+    status,
+    connectionStates,
+    databases,
+    tableCache,
+    activeProfileId,
+    activeConnection,
+    connectedLabel,
+    emptyConnectionState,
+    getConnectionState,
+    updateConnectionState,
+    syncActiveConnectionState,
+    tableList,
+    tableCount,
+    isProfileConnected
+  } = useConnectionState({
+    currentTab,
+    selectedProfileId
+  })
 
   const selectedProfile = computed(() => profiles.value.find((item) => item.id === selectedProfileId.value))
-  const activeProfileId = computed(() => currentTab.value?.profileId || selectedProfileId.value || connectedProfileId.value)
-  const activeConnection = computed(() => getConnectionState(activeProfileId.value))
-  const connectedLabel = computed(() => activeConnection.value.status.connected ? `${activeConnection.value.status.user}@${activeConnection.value.status.server}` : '未连接')
 
   async function initializeProfiles() {
-    profiles.value = loadProfiles()
-    if (profiles.value.length === 0) {
-      profiles.value = [emptyProfile(newId)]
-      persistProfiles()
-    }
-    selectedProfileId.value = profiles.value[0]?.id || ''
+    initializeProfileStore()
     if (hasRuntime()) {
       status.value = await Status()
     }
-  }
-
-  function emptyConnectionState() {
-    return {status: {connected: false}, databases: [], tableCache: {}}
-  }
-
-  function getConnectionState(profileId) {
-    return connectionStates.value[profileId] || emptyConnectionState()
-  }
-
-  function updateConnectionState(profileId, patch) {
-    if (!profileId) return
-    connectionStates.value = {
-      ...connectionStates.value,
-      [profileId]: {
-        ...getConnectionState(profileId),
-        ...patch
-      }
-    }
-    if (profileId === activeProfileId.value || profileId === selectedProfileId.value) {
-      const next = getConnectionState(profileId)
-      status.value = next.status
-      databases.value = next.databases
-      tableCache.value = next.tableCache
-    }
-  }
-
-  function syncActiveConnectionState(profileId = activeProfileId.value) {
-    const next = getConnectionState(profileId)
-    status.value = next.status
-    databases.value = next.databases
-    tableCache.value = next.tableCache
   }
 
   function profileById(profileId) {
@@ -114,136 +102,6 @@ export function useConnections({
     selectedProfileId.value = profile.id
     syncActiveConnectionState(profile.id)
     addLog('debug', 'Select server profile', logContext({profile: profile.name, host: profile.host}))
-  }
-
-  function tableList(profileId, database) {
-    return getConnectionState(profileId).tableCache[database] || []
-  }
-
-  function tableCount(profileId, database) {
-    return tableList(profileId, database).length
-  }
-
-  function isProfileConnected(profile) {
-    return getConnectionState(profile.id).status.connected
-  }
-
-  function loadProfiles() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-      return Array.isArray(parsed) ? parsed.map((profile) => normalizeProfile(profile, newId)) : []
-    } catch {
-      return []
-    }
-  }
-
-  function persistProfiles() {
-    const safeProfiles = profiles.value.map((profile) => ({
-      ...profile,
-      password: '',
-      ssh: {
-        ...profile.ssh,
-        password: '',
-        privateKey: '',
-        passphrase: ''
-      }
-    }))
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(safeProfiles))
-  }
-
-  function cloneProfile(profile) {
-    return JSON.parse(JSON.stringify(profile))
-  }
-
-  function openNewProfileDialog() {
-    addLog('debug', 'Open new server profile dialog', logContext())
-    editingProfileId.value = ''
-    draftProfile.value = emptyProfile(newId)
-    profileDialogTab.value = 'general'
-    testConnectionState.value = {status: 'idle', message: ''}
-    profileDialogOpen.value = true
-  }
-
-  async function openEditProfileDialog(profile) {
-    addLog('debug', 'Open server profile dialog', logContext({profile: profile.name}))
-    editingProfileId.value = profile.id
-    draftProfile.value = cloneProfile(profile)
-    profileDialogTab.value = 'general'
-    testConnectionState.value = {status: 'idle', message: ''}
-    if (hasRuntime()) {
-      const credentials = await LoadCredentials(profile.id)
-      draftProfile.value.password = credentials.mysqlPassword || ''
-      draftProfile.value.ssh.password = credentials.sshPassword || ''
-      draftProfile.value.ssh.passphrase = credentials.sshPassphrase || ''
-    }
-    profileDialogOpen.value = true
-  }
-
-  async function testDraftConnection() {
-    const connection = normalizeProfile(draftProfile.value, newId)
-    connection.name = connection.name.trim() || `${connection.user}@${connection.host}`
-    testConnectionState.value = {status: 'testing', message: '正在测试连接...'}
-    addLog('info', 'Test server connection', logContext({profile: connection.name, host: connection.host, port: connection.port}))
-    if (!hasRuntime()) {
-      testConnectionState.value = {status: 'success', message: '浏览器预览模式：桌面客户端内会执行真实测试'}
-      return
-    }
-    try {
-      const nextStatus = await TestConnection(connection)
-      testConnectionState.value = {status: 'success', message: `连接成功：${nextStatus.user}@${nextStatus.server}${nextStatus.viaSsh ? ' via SSH' : ''}`}
-      addLog('success', 'Connection test succeeded', logContext({profile: connection.name, host: connection.host}))
-    } catch (error) {
-      testConnectionState.value = {status: 'error', message: errorMessage(error)}
-      addLog('error', 'Connection test failed', logContext({profile: connection.name, error: errorMessage(error)}))
-    }
-  }
-
-  async function choosePrivateKeyPath() {
-    if (!hasRuntime()) {
-      setMessage('当前是浏览器预览，文件选择需要在 Wails 客户端中使用', 'warn')
-      return
-    }
-    addLog('debug', 'Choose SSH private key path', logContext())
-    const path = await ChoosePrivateKeyPath()
-    if (path) {
-      draftProfile.value.ssh.privateKeyPath = path
-    }
-  }
-
-  async function saveProfile() {
-    const nextProfile = normalizeProfile(draftProfile.value, newId)
-    nextProfile.name = nextProfile.name.trim() || `${nextProfile.user}@${nextProfile.host}`
-    if (editingProfileId.value) {
-      profiles.value = profiles.value.map((item) => item.id === editingProfileId.value ? nextProfile : item)
-    } else {
-      profiles.value.unshift(nextProfile)
-    }
-    selectedProfileId.value = nextProfile.id
-    persistProfiles()
-
-    if (hasRuntime()) {
-      await SaveCredentials(nextProfile.id, {
-        mysqlPassword: draftProfile.value.password,
-        rememberMysqlPassword: nextProfile.rememberPassword,
-        sshPassword: draftProfile.value.ssh.password,
-        rememberSshPassword: nextProfile.ssh.rememberPassword,
-        sshPassphrase: draftProfile.value.ssh.passphrase,
-        rememberSshPassphrase: nextProfile.ssh.rememberPassphrase
-      })
-    }
-    profileDialogOpen.value = false
-    setMessage('服务器信息已保存', 'success', {profile: nextProfile.name})
-  }
-
-  async function removeProfile(profile) {
-    addLog('warn', 'Request delete server profile', logContext({profile: profile.name}))
-    if (!await askConfirm('删除连接', `确定删除连接 "${profile.name}"？保存的钥匙串密码也会一并删除。`, '删除')) return
-    profiles.value = profiles.value.filter((item) => item.id !== profile.id)
-    if (selectedProfileId.value === profile.id) {
-      selectedProfileId.value = profiles.value[0]?.id || ''
-    }
-    persistProfiles()
-    if (hasRuntime()) await DeleteCredentials(profile.id)
   }
 
   async function connectSelected() {
@@ -323,25 +181,24 @@ export function useConnections({
   return {
     profiles,
     selectedProfileId,
-    connectedProfileId,
     status,
     connectionStates,
     databases,
     tableCache,
+    activeProfileId,
+    activeConnection,
+    connectedLabel,
+    emptyConnectionState,
+    getConnectionState,
+    updateConnectionState,
+    syncActiveConnectionState,
     profileDialogOpen,
     draftProfile,
     editingProfileId,
     profileDialogTab,
     testConnectionState,
     selectedProfile,
-    activeProfileId,
-    activeConnection,
-    connectedLabel,
     initializeProfiles,
-    emptyConnectionState,
-    getConnectionState,
-    updateConnectionState,
-    syncActiveConnectionState,
     profileById,
     activeProfileName,
     selectProfile,
@@ -357,60 +214,4 @@ export function useConnections({
     connectSelected,
     disconnect
   }
-}
-
-function emptyProfile(newId) {
-  return {
-    id: newId(),
-    name: 'Local MySQL',
-    host: '127.0.0.1',
-    port: '3306',
-    user: 'root',
-    password: '',
-    rememberPassword: false,
-    database: '',
-    advanced: {
-      connectTimeoutSeconds: 8,
-      maxOpenConns: 8,
-      maxIdleConns: 2
-    },
-    ssh: {
-      enabled: false,
-      host: '',
-      port: '22',
-      user: '',
-      password: '',
-      rememberPassword: false,
-      privateKey: '',
-      privateKeyPath: '',
-      passphrase: '',
-      rememberPassphrase: false
-    }
-  }
-}
-
-function normalizeProfile(profile, newId) {
-  const base = emptyProfile(newId)
-  const advanced = {...base.advanced, ...(profile.advanced || {})}
-  return {
-    ...base,
-    ...profile,
-    password: '',
-    advanced: {
-      connectTimeoutSeconds: clamp(Number(advanced.connectTimeoutSeconds) || 8, 1, 120),
-      maxOpenConns: clamp(Number(advanced.maxOpenConns) || 8, 1, 128),
-      maxIdleConns: clamp(Number(advanced.maxIdleConns) || 2, 0, Math.max(1, Number(advanced.maxOpenConns) || 8))
-    },
-    ssh: {
-      ...base.ssh,
-      ...(profile.ssh || {}),
-      password: '',
-      privateKey: '',
-      passphrase: ''
-    }
-  }
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value))
 }
