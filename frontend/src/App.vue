@@ -488,7 +488,6 @@ async function toggleDatabase(profileId, database) {
   setExpanded(willExpand, 'database', profileId, database)
   addLog('debug', willExpand ? 'Expand database node' : 'Collapse database node', logContext({profile: activeProfileName(profileId), database}))
   if (willExpand) {
-    setExpanded(true, 'tables', profileId, database)
     await refreshTables(profileId, database)
   }
 }
@@ -509,7 +508,6 @@ async function selectDatabase(profileId, database) {
   selectedTable.value = ''
   addLog('info', 'Select database', logContext({profile: activeProfileName(profileId), database}))
   setExpanded(true, 'database', profileId, database)
-  setExpanded(true, 'tables', profileId, database)
   await refreshTables(profileId, database)
 }
 
@@ -1009,7 +1007,6 @@ async function connectSelected() {
       selectedTable.value = 'users'
       tableData.value = demoTableData()
       setExpanded(true, 'database', profileId, 'demo')
-      setExpanded(true, 'tables', profileId, 'demo')
       await loadTableMetadata(profileId, 'demo', 'users')
       await nextTick()
       suppressDatabaseWatch.value = false
@@ -1030,7 +1027,6 @@ async function connectSelected() {
       await refreshTables(profileId, selectedDatabase.value, true)
       selectedTable.value = tableList(profileId, selectedDatabase.value)[0]?.name || ''
       setExpanded(true, 'database', profileId, selectedDatabase.value)
-      setExpanded(true, 'tables', profileId, selectedDatabase.value)
       if (selectedTable.value) {
         await loadTableMetadata(profileId, selectedDatabase.value, selectedTable.value)
       }
