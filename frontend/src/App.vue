@@ -27,6 +27,7 @@ import {
 const STORAGE_KEY = 'mysql-gui.profiles'
 const LAYOUT_KEY = 'mysql-gui.layout'
 const QUERY_HISTORY_KEY = 'mysql-gui.queryHistory'
+const appStartedAt = performance.now()
 
 const hasRuntime = () => Boolean(window.go?.main?.App)
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -245,7 +246,6 @@ onMounted(async () => {
   loadLayout()
   window.addEventListener('contextmenu', preventNativeContextMenu)
   window.addEventListener('selectstart', preventChromeTextSelection)
-  addLog('info', 'Application started')
   queryHistory.value = loadQueryHistory()
   profiles.value = loadProfiles()
   if (profiles.value.length === 0) {
@@ -259,6 +259,7 @@ onMounted(async () => {
   if (hasRuntime()) {
     status.value = await Status()
   }
+  addLog('info', 'Application ready', logContext({elapsedMs: elapsedSince(appStartedAt), profiles: profiles.value.length}))
 })
 
 onBeforeUnmount(() => {
@@ -533,6 +534,14 @@ function formatLogTime(date) {
   return date.toLocaleTimeString([], {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'})
 }
 
+function perfStart() {
+  return performance.now()
+}
+
+function elapsedSince(startedAt) {
+  return Math.max(0, Math.round(performance.now() - startedAt))
+}
+
 function addLog(level, text, context = {}) {
   const entry = {
     id: newId(),
@@ -715,6 +724,7 @@ async function loadTableMetadata(profileId, database, table) {
   if (!database || !table) return
   const key = metadataKey(profileId, database, table)
   if (tableMetadata.value[key]) return
+  const startedAt = perfStart()
   if (!hasRuntime()) {
     tableMetadata.value = {
       ...tableMetadata.value,
@@ -726,6 +736,7 @@ async function loadTableMetadata(profileId, database, table) {
         ]
       }
     }
+    addLog('debug', 'Preview table metadata loaded', logContext({profileId, database, table, elapsedMs: elapsedSince(startedAt)}))
     return
   }
   const [columns, indexes] = await Promise.all([
@@ -736,23 +747,26 @@ async function loadTableMetadata(profileId, database, table) {
     ...tableMetadata.value,
     [key]: {columns, indexes}
   }
+  addLog('success', 'Table metadata loaded', logContext({profileId, database, table, columns: columns.length, indexes: indexes.length, elapsedMs: elapsedSince(startedAt)}))
 }
 
 async function loadTableDDL(profileId, database, table) {
   if (!database || !table) return
   const key = metadataKey(profileId, database, table)
   if (tableDDLs.value[key]) return
+  const startedAt = perfStart()
   if (!hasRuntime()) {
     tableDDLs.value = {
       ...tableDDLs.value,
       [key]: `CREATE TABLE \`${table}\` (\n  \`id\` bigint NOT NULL AUTO_INCREMENT,\n  \`name\` varchar(120) DEFAULT NULL,\n  PRIMARY KEY (\`id\`)\n) ENGINE=InnoDB;`
     }
+    addLog('debug', 'Preview DDL loaded', logContext({profileId, database, table, elapsedMs: elapsedSince(startedAt)}))
     return
   }
   try {
     const ddl = await ShowCreateTable(profileId, database, table)
     tableDDLs.value = {...tableDDLs.value, [key]: ddl}
-    addLog('success', 'DDL loaded', logContext({database, table}))
+    addLog('success', 'DDL loaded', logContext({database, table, elapsedMs: elapsedSince(startedAt)}))
   } catch (error) {
     setMessage(errorMessage(error), 'error', logContext({operation: 'showCreateTable', database, table}))
   }
@@ -900,6 +914,7 @@ async function removeProfile(profile) {
 
 async function connectSelected() {
   if (!selectedProfile.value) return
+  const startedAt = perfStart()
   const profileId = selectedProfile.value.id
   addLog('info', 'Connect server', logContext({profileId, profile: selectedProfile.value.name, host: selectedProfile.value.host, port: selectedProfile.value.port}))
   busy.value = true
@@ -922,7 +937,7 @@ async function connectSelected() {
       await nextTick()
       suppressDatabaseWatch.value = false
       openDataTab(profileId, 'demo', 'users')
-      setMessage('浏览器预览模式：后端连接在 Wails 客户端内可用', 'warn', logContext())
+      setMessage('浏览器预览模式：后端连接在 Wails 客户端内可用', 'warn', logContext({elapsedMs: elapsedSince(startedAt)}))
       return
     }
 
@@ -949,7 +964,7 @@ async function connectSelected() {
     if (selectedDatabase.value && selectedTable.value) {
       openDataTab(profileId, selectedDatabase.value, selectedTable.value)
     }
-    setMessage('连接成功', 'success', logContext({profileId, databases: nextDatabases.length}))
+    setMessage('连接成功', 'success', logContext({profileId, databases: nextDatabases.length, elapsedMs: elapsedSince(startedAt)}))
   } catch (error) {
     suppressDatabaseWatch.value = false
     setMessage(errorMessage(error), 'error', logContext({operation: 'connect'}))
@@ -980,13 +995,14 @@ async function refreshTables(profileId = activeProfileId.value, database = selec
   const state = getConnectionState(profileId)
   if (!force && state.tableCache[database]) return
   if (!hasRuntime()) return
+  const startedAt = perfStart()
   addLog('info', force ? 'Refresh tables' : 'Load tables', logContext({profileId, database}))
   try {
     const tables = await ListTables(profileId, database)
     updateConnectionState(profileId, {
       tableCache: {...getConnectionState(profileId).tableCache, [database]: tables}
     })
-    addLog('success', 'Tables loaded', logContext({profileId, database, tables: tables.length}))
+    addLog('success', 'Tables loaded', logContext({profileId, database, tables: tables.length, elapsedMs: elapsedSince(startedAt)}))
   } catch (error) {
     setMessage(errorMessage(error), 'error', logContext({operation: 'refreshTables', database}))
   }
@@ -1013,6 +1029,7 @@ async function executeSql(mode = 'query') {
   const executableSql = mode === 'explain' ? explainSql(sql) : sql
   addQueryHistory(sql)
   const profileId = activeProfileId.value
+  const startedAt = perfStart()
   addLog('info', mode === 'explain' ? 'Explain SQL' : 'Execute SQL', logContext({profileId, database: selectedDatabase.value, sql: executableSql.slice(0, 180)}))
   busy.value = true
   try {
@@ -1022,12 +1039,12 @@ async function executeSql(mode = 'query') {
         sql: executableSql,
         result: {columns: mode === 'explain' ? ['id', 'select_type', 'table', 'type', 'rows', 'Extra'] : ['id', 'name'], rows: mode === 'explain' ? [[1, 'SIMPLE', 'users', 'ALL', 2, 'Using where']] : [[1, 'preview']], rowsAffected: 1, elapsedMs: 1, message: 'Preview result'}
       })
-      setMessage('Preview result', 'success')
+      setMessage('Preview result', 'success', logContext({elapsedMs: elapsedSince(startedAt), rows: 1}))
       return
     }
     const nextResult = await Execute(profileId, executableSql, selectedDatabase.value)
     appendResultTab({mode, sql: executableSql, result: nextResult})
-    setMessage(nextResult.message || '执行完成', 'success', logContext({elapsedMs: nextResult.elapsedMs, rows: nextResult.rows?.length || 0, affected: nextResult.rowsAffected || 0}))
+    setMessage(nextResult.message || '执行完成', 'success', logContext({elapsedMs: nextResult.elapsedMs, totalElapsedMs: elapsedSince(startedAt), rows: nextResult.rows?.length || 0, affected: nextResult.rowsAffected || 0}))
     if (selectedTable.value) await loadTablePage(tableData.value.page)
   } catch (error) {
     setMessage(errorMessage(error), 'error', logContext({operation: mode === 'explain' ? 'explain' : 'execute'}))
@@ -1270,12 +1287,13 @@ function handleQueryKeydown(event) {
 
 async function loadTablePage(page = tableData.value.page) {
   if (!selectedDatabase.value || !selectedTable.value) return
+  const startedAt = perfStart()
   const profileId = activeProfileId.value
   addLog('info', 'Load table page', logContext({profileId, page, pageSize: tableData.value.pageSize}))
   if (!hasRuntime()) {
     tableData.value = demoTableData(page, tableData.value.pageSize)
     selectedRowIndex.value = -1
-    addLog('success', 'Preview table data loaded', logContext({rows: tableData.value.rows.length}))
+    addLog('success', 'Preview table data loaded', logContext({rows: tableData.value.rows.length, elapsedMs: elapsedSince(startedAt)}))
     return
   }
   busy.value = true
@@ -1291,7 +1309,7 @@ async function loadTablePage(page = tableData.value.page) {
       orderDir: tableOrderDir.value
     })
     selectedRowIndex.value = -1
-    addLog('success', 'Table page loaded', logContext({page: tableData.value.page, rows: tableData.value.rows.length, total: tableData.value.total}))
+    addLog('success', 'Table page loaded', logContext({page: tableData.value.page, rows: tableData.value.rows.length, total: tableData.value.total, elapsedMs: elapsedSince(startedAt)}))
   } catch (error) {
     setMessage(errorMessage(error), 'error', logContext({operation: 'loadTablePage'}))
   } finally {
