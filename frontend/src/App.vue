@@ -2,9 +2,11 @@
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import DatabaseExplorer from './components/DatabaseExplorer.vue'
 import CustomSelect from './components/CustomSelect.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import DataTableView from './components/DataTableView.vue'
 import EditorTabs from './components/EditorTabs.vue'
 import MainToolbar from './components/MainToolbar.vue'
+import ResultDetailDialog from './components/ResultDetailDialog.vue'
 import ServicesPanel from './components/ServicesPanel.vue'
 import SqlEditorToolbar from './components/SqlEditorToolbar.vue'
 import SqlResultPane from './components/SqlResultPane.vue'
@@ -1169,21 +1171,11 @@ function errorMessage(error) {
       </form>
     </div>
 
-    <div v-if="confirmDialogOpen" class="dialog-backdrop">
-      <section class="dialog confirm-dialog">
-        <header>
-          <h2>{{ confirmDialog.title }}</h2>
-          <button type="button" class="icon-close" @click="resolveConfirm(false)">×</button>
-        </header>
-        <div class="dialog-body">
-          <p class="confirm-copy">{{ confirmDialog.body }}</p>
-        </div>
-        <footer>
-          <button type="button" class="ghost" @click="resolveConfirm(false)">取消</button>
-          <button type="button" class="danger-primary" @click="resolveConfirm(true)">{{ confirmDialog.action }}</button>
-        </footer>
-      </section>
-    </div>
+    <ConfirmDialog
+      :open="confirmDialogOpen"
+      :dialog="confirmDialog"
+      @resolve="resolveConfirm"
+    />
 
     <div v-if="filterDialogOpen" class="dialog-backdrop">
       <form class="dialog compact-dialog filter-dialog" @submit.prevent="applyFilterBuilder">
@@ -1239,26 +1231,11 @@ function errorMessage(error) {
       </form>
     </div>
 
-    <div v-if="resultDetailOpen" class="dialog-backdrop">
-      <section class="dialog result-detail-dialog">
-        <header>
-          <div class="dialog-title">
-            <h2>结果行详情</h2>
-            <span>{{ resultDetail.title }}</span>
-          </div>
-          <button type="button" class="icon-close" @click="resultDetailOpen = false">×</button>
-        </header>
-        <div class="dialog-body result-detail-body">
-          <div v-for="field in resultDetail.fields" :key="field.column" class="detail-field">
-            <span>{{ field.column }}</span>
-            <pre data-native-context>{{ field.value }}</pre>
-          </div>
-        </div>
-        <footer>
-          <button type="button" class="ghost" @click="resultDetailOpen = false">关闭</button>
-        </footer>
-      </section>
-    </div>
+    <ResultDetailDialog
+      :open="resultDetailOpen"
+      :detail="resultDetail"
+      @close="resultDetailOpen = false"
+    />
 
     <div v-if="importDialogOpen" class="dialog-backdrop">
       <section class="dialog import-dialog">
