@@ -1240,10 +1240,10 @@ async function executeSql(mode = 'query', target = 'smart') {
           elapsedMs: 1,
           message: 'Preview result'
         }
-        appendResultTab({mode, sql: executableSql, result: lastResult, scope: execution.scope})
+        appendResultTab({mode, sql: executableSql, result: lastResult, scope: execution.scope, statementIndex: index})
       } else {
         lastResult = await ExecuteWithID(queryID, profileId, executableSql, selectedDatabase.value)
-        appendResultTab({mode, sql: executableSql, result: lastResult, scope: execution.scope})
+        appendResultTab({mode, sql: executableSql, result: lastResult, scope: execution.scope, statementIndex: index})
         if (mode === 'query' && selectedDatabase.value && isSchemaChangingSql(executableSql)) {
           invalidateSchemaCache(profileId, selectedDatabase.value, '', {tableList: true})
           await refreshTables(profileId, selectedDatabase.value, true)
@@ -1272,12 +1272,19 @@ async function executeSql(mode = 'query', target = 'smart') {
   }
 }
 
-function appendResultTab({mode, sql, result, scope = 'statement'}) {
+function appendResultTab({mode, sql, result, scope = 'statement', statementIndex = 0}) {
+  const tabKey = resultTabKey({mode, sql, scope, statementIndex})
+  const existingIndex = resultTabs.value.findIndex((tab) => tab.key === tabKey)
+  const title = existingIndex >= 0
+    ? resultTabs.value[existingIndex].title
+    : `${mode === 'explain' ? 'Explain' : 'Result'} ${resultTabs.value.length + 1}`
   const tab = {
-    id: newId(),
+    id: existingIndex >= 0 ? resultTabs.value[existingIndex].id : newId(),
+    key: tabKey,
     mode,
-    title: `${mode === 'explain' ? 'Explain' : 'Result'} ${resultTabs.value.length + 1}`,
+    title,
     scope,
+    statementIndex,
     sql,
     columns: result.columns || [],
     rows: result.rows || [],
@@ -1287,9 +1294,35 @@ function appendResultTab({mode, sql, result, scope = 'statement'}) {
     truncated: Boolean(result.truncated),
     createdAt: formatLogTime(new Date())
   }
-  resultTabs.value = [...resultTabs.value.slice(-9), tab]
+  if (existingIndex >= 0) {
+    const nextTabs = [...resultTabs.value]
+    nextTabs[existingIndex] = tab
+    resultTabs.value = nextTabs
+  } else {
+    resultTabs.value = [...resultTabs.value.slice(-9), tab]
+  }
   activeResultTabId.value = tab.id
   resetGridScroll('result')
+}
+
+function resultTabKey({mode, sql, scope, statementIndex}) {
+  return [
+    currentTab.value?.id || 'console',
+    mode,
+    scope,
+    statementIndex,
+    normalizeResultSql(sql)
+  ].join('|')
+}
+
+function normalizeResultSql(sql) {
+  return String(sql || '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/--.*$/gm, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/;+\s*$/g, '')
+    .trim()
+    .toLowerCase()
 }
 
 function closeResultTab(tabId, event) {
@@ -2491,6 +2524,7 @@ function demoTableData(page = 1, pageSize = 50) {
                   v-for="tab in resultTabs"
                   :key="tab.id"
                   :class="{active: tab.id === activeResultTabId}"
+                  :title="compactSql(tab.sql)"
                   @click="activeResultTabId = tab.id"
                 >
                   <span>{{ tab.title }}</span>
