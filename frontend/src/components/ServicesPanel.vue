@@ -1,5 +1,6 @@
 <script setup>
 import {ref} from 'vue'
+import CustomSelect from './CustomSelect.vue'
 
 defineProps({
   servicesColumns: {
@@ -37,10 +38,6 @@ defineProps({
   selectedProfile: {
     type: Object,
     default: null
-  },
-  optionLabel: {
-    type: Function,
-    required: true
   },
   logContextSummary: {
     type: Function,
@@ -93,20 +90,17 @@ defineExpose({scrollToBottom})
     <header class="services-title">
       <span>Services</span>
       <div class="window-actions">
-        <div class="custom-select compact" :class="{open: openSelectId === 'logLevel'}" @click.stop>
-          <button class="custom-select-button" title="Log level" @click="emit('toggleSelect', 'logLevel')">
-            <span>{{ optionLabel(logLevelOptions, logLevelFilter, 'All') }}</span>
-            <span class="select-caret">⌄</span>
-          </button>
-          <div v-if="openSelectId === 'logLevel'" class="custom-select-menu align-right">
-            <button
-              v-for="option in logLevelOptions"
-              :key="option.value"
-              :class="{active: option.value === logLevelFilter}"
-              @click="emit('chooseLogLevel', option.value)"
-            >{{ option.label }}</button>
-          </div>
-        </div>
+        <CustomSelect
+          compact
+          align-right
+          title="Log level"
+          :options="logLevelOptions"
+          :value="logLevelFilter"
+          fallback="All"
+          :open="openSelectId === 'logLevel'"
+          @toggle="emit('toggleSelect', 'logLevel')"
+          @choose="emit('chooseLogLevel', $event)"
+        />
         <input
           :value="logSearch"
           class="log-search"
@@ -231,83 +225,6 @@ button:hover:not(:disabled) {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-
-.custom-select {
-  position: relative;
-  min-width: 140px;
-}
-
-.custom-select.compact {
-  min-width: 92px;
-}
-
-.custom-select-button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  min-height: 25px;
-  padding: 0 7px 0 9px;
-  color: var(--text);
-  background: #303338;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-}
-
-.custom-select-button span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-select.open .custom-select-button {
-  border-color: #4d8df7;
-  box-shadow: 0 0 0 1px rgba(77, 141, 247, 0.25);
-}
-
-.select-caret {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.custom-select-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 30;
-  width: max(100%, 180px);
-  max-height: 260px;
-  overflow: auto;
-  padding: 4px;
-  background: #2b2d30;
-  border: 1px solid #4a4e55;
-  border-radius: 6px;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
-}
-
-.custom-select-menu.align-right {
-  right: 0;
-  left: auto;
-}
-
-.custom-select-menu button {
-  display: block;
-  width: 100%;
-  min-height: 25px;
-  padding: 0 8px;
-  color: #cbd1db;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-select-menu button.active {
-  color: #ffffff;
-  background: #41506a;
 }
 
 .log-search {

@@ -1,4 +1,6 @@
 <script setup>
+import CustomSelect from './CustomSelect.vue'
+
 defineProps({
   busy: {
     type: Boolean,
@@ -59,10 +61,6 @@ defineProps({
   pageSize: {
     type: Number,
     default: 50
-  },
-  optionLabel: {
-    type: Function,
-    required: true
   }
 })
 
@@ -87,20 +85,15 @@ const emit = defineEmits([
     <button :disabled="!activeConnection.status.connected" @click="emit('disconnect')">■</button>
     <button :disabled="!selectedProfile" @click="emit('editProfile', selectedProfile)">⚙</button>
     <span class="toolbar-separator"></span>
-    <div class="custom-select" :class="{open: openSelectId === 'database', disabled: !activeConnection.status.connected}" @click.stop>
-      <button class="custom-select-button" :disabled="!activeConnection.status.connected" @click="emit('toggleSelect', 'database')">
-        <span>{{ optionLabel(databaseOptions, selectedDatabase, 'Database') }}</span>
-        <span class="select-caret">⌄</span>
-      </button>
-      <div v-if="openSelectId === 'database'" class="custom-select-menu">
-        <button
-          v-for="option in databaseOptions"
-          :key="option.value || 'empty'"
-          :class="{active: option.value === selectedDatabase}"
-          @click="emit('chooseDatabase', option.value)"
-        >{{ option.label }}</button>
-      </div>
-    </div>
+    <CustomSelect
+      :options="databaseOptions"
+      :value="selectedDatabase"
+      fallback="Database"
+      :open="openSelectId === 'database'"
+      :disabled="!activeConnection.status.connected"
+      @toggle="emit('toggleSelect', 'database')"
+      @choose="emit('chooseDatabase', $event)"
+    />
     <span class="toolbar-mode">Tx: Auto</span>
     <button :disabled="!selectedTable" @click="emit('loadTablePage', tablePage)">↻</button>
     <button :disabled="!selectedTable" @click="emit('openInsertRow')">+</button>
@@ -111,20 +104,16 @@ const emit = defineEmits([
     </template>
     <button :disabled="!selectedTable" @click="emit('selectTableObject', 'ddl', selectedTable, selectedDatabase, activeProfileId)">DDL</button>
     <div class="toolbar-fill"></div>
-    <div class="custom-select compact" :class="{open: openSelectId === 'pageSize'}" @click.stop>
-      <button class="custom-select-button" @click="emit('toggleSelect', 'pageSize')">
-        <span>{{ optionLabel(pageSizeOptions, pageSize, '50 rows') }}</span>
-        <span class="select-caret">⌄</span>
-      </button>
-      <div v-if="openSelectId === 'pageSize'" class="custom-select-menu align-right">
-        <button
-          v-for="option in pageSizeOptions"
-          :key="option.value"
-          :class="{active: option.value === pageSize}"
-          @click="emit('choosePageSize', option.value)"
-        >{{ option.label }}</button>
-      </div>
-    </div>
+    <CustomSelect
+      compact
+      align-right
+      :options="pageSizeOptions"
+      :value="pageSize"
+      fallback="50 rows"
+      :open="openSelectId === 'pageSize'"
+      @toggle="emit('toggleSelect', 'pageSize')"
+      @choose="emit('choosePageSize', $event)"
+    />
   </div>
 </template>
 
@@ -217,84 +206,4 @@ button:disabled {
   background: rgba(244, 87, 82, 0.28);
 }
 
-.custom-select {
-  position: relative;
-  min-width: 140px;
-}
-
-.custom-select.compact {
-  min-width: 92px;
-}
-
-.custom-select-button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  min-height: 25px;
-  padding: 0 7px 0 9px;
-  color: var(--text);
-  background: #303338;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-}
-
-.custom-select-button span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-select.open .custom-select-button {
-  border-color: #4d8df7;
-  box-shadow: 0 0 0 1px rgba(77, 141, 247, 0.25);
-}
-
-.custom-select.disabled {
-  opacity: 0.48;
-}
-
-.select-caret {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.custom-select-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 30;
-  width: max(100%, 180px);
-  max-height: 260px;
-  overflow: auto;
-  padding: 4px;
-  background: #2b2d30;
-  border: 1px solid #4a4e55;
-  border-radius: 6px;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
-}
-
-.custom-select-menu.align-right {
-  right: 0;
-  left: auto;
-}
-
-.custom-select-menu button {
-  display: block;
-  width: 100%;
-  min-height: 25px;
-  padding: 0 8px;
-  color: #cbd1db;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-select-menu button.active {
-  color: #ffffff;
-  background: #41506a;
-}
 </style>

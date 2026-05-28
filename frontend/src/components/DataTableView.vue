@@ -1,5 +1,6 @@
 <script setup>
 import {ref} from 'vue'
+import CustomSelect from './CustomSelect.vue'
 
 defineProps({
   tableWhere: {
@@ -74,10 +75,6 @@ defineProps({
     type: Boolean,
     default: false
   },
-  optionLabel: {
-    type: Function,
-    required: true
-  },
   columnWidth: {
     type: Function,
     required: true
@@ -135,34 +132,24 @@ defineExpose({scrollToTop})
       >
       <button :disabled="!selectedTable || !tableData.columns.length" @click="emit('openFilterDialog')">Filter</button>
       <span>≡ ORDER BY</span>
-      <div class="custom-select" :class="{open: openSelectId === 'orderBy'}" @click.stop>
-        <button class="custom-select-button" @click="emit('toggleSelect', 'orderBy')">
-          <span>{{ optionLabel(orderByOptions, tableOrderBy, 'none') }}</span>
-          <span class="select-caret">⌄</span>
-        </button>
-        <div v-if="openSelectId === 'orderBy'" class="custom-select-menu">
-          <button
-            v-for="option in orderByOptions"
-            :key="option.value || 'none'"
-            :class="{active: option.value === tableOrderBy}"
-            @click="emit('chooseOrderBy', option.value)"
-          >{{ option.label }}</button>
-        </div>
-      </div>
-      <div class="custom-select compact" :class="{open: openSelectId === 'orderDir', disabled: !tableOrderBy}" @click.stop>
-        <button class="custom-select-button" :disabled="!tableOrderBy" @click="emit('toggleSelect', 'orderDir')">
-          <span>{{ optionLabel(orderDirOptions, tableOrderDir, 'ASC') }}</span>
-          <span class="select-caret">⌄</span>
-        </button>
-        <div v-if="openSelectId === 'orderDir'" class="custom-select-menu">
-          <button
-            v-for="option in orderDirOptions"
-            :key="option.value"
-            :class="{active: option.value === tableOrderDir}"
-            @click="emit('chooseOrderDir', option.value)"
-          >{{ option.label }}</button>
-        </div>
-      </div>
+      <CustomSelect
+        :options="orderByOptions"
+        :value="tableOrderBy"
+        fallback="none"
+        :open="openSelectId === 'orderBy'"
+        @toggle="emit('toggleSelect', 'orderBy')"
+        @choose="emit('chooseOrderBy', $event)"
+      />
+      <CustomSelect
+        compact
+        :options="orderDirOptions"
+        :value="tableOrderDir"
+        fallback="ASC"
+        :open="openSelectId === 'orderDir'"
+        :disabled="!tableOrderBy"
+        @toggle="emit('toggleSelect', 'orderDir')"
+        @choose="emit('chooseOrderDir', $event)"
+      />
       <button @click="emit('applyFilter')">Apply</button>
       <button @click="emit('clearFilter')">Clear</button>
       <button :disabled="!selectedTable" @click="emit('openInsertRow')">+ Row</button>
@@ -287,82 +274,6 @@ button:disabled {
   background: #1f2023;
   border: 1px solid var(--line);
   border-radius: 4px;
-}
-
-.custom-select {
-  position: relative;
-  min-width: 140px;
-}
-
-.custom-select.compact {
-  min-width: 92px;
-}
-
-.custom-select-button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  min-height: 25px;
-  padding: 0 7px 0 9px;
-  color: var(--text);
-  background: #303338;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-}
-
-.custom-select-button span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-select.open .custom-select-button {
-  border-color: #4d8df7;
-  box-shadow: 0 0 0 1px rgba(77, 141, 247, 0.25);
-}
-
-.custom-select.disabled {
-  opacity: 0.48;
-}
-
-.select-caret {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.custom-select-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 30;
-  width: max(100%, 180px);
-  max-height: 260px;
-  overflow: auto;
-  padding: 4px;
-  background: #2b2d30;
-  border: 1px solid #4a4e55;
-  border-radius: 6px;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
-}
-
-.custom-select-menu button {
-  display: block;
-  width: 100%;
-  min-height: 25px;
-  padding: 0 8px;
-  color: #cbd1db;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-select-menu button.active {
-  color: #ffffff;
-  background: #41506a;
 }
 
 .selection-chip {
