@@ -90,6 +90,7 @@ const testConnectionState = ref({status: 'idle', message: ''})
 
 const query = ref('SELECT 1;')
 const queryEditorRef = ref(null)
+const querySelection = ref({start: 0, end: 0})
 const queryHistory = ref([])
 const selectedHistoryIndex = ref('')
 const runningQueryId = ref('')
@@ -221,6 +222,8 @@ const historyOptions = computed(() => [
   {label: 'Recent SQL', value: ''},
   ...queryHistory.value.map((item, index) => ({label: item.slice(0, 90), value: String(index)}))
 ])
+const querySelectionText = computed(() => query.value.slice(querySelection.value.start, querySelection.value.end).trim())
+const hasQuerySelection = computed(() => Boolean(querySelectionText.value))
 const orderByOptions = computed(() => [
   {label: 'none', value: ''},
   ...tableData.value.columns.map((column) => ({label: column.name, value: column.name}))
@@ -1144,12 +1147,12 @@ async function refreshTables(profileId = activeProfileId.value, database = selec
   }
 }
 
-async function runQuery() {
-  await executeSql('query')
+async function runQuery(target = 'smart') {
+  await executeSql('query', target)
 }
 
-async function explainQuery() {
-  await executeSql('explain')
+async function explainQuery(target = 'smart') {
+  await executeSql('explain', target)
 }
 
 async function cancelRunningQuery() {
@@ -1172,58 +1175,85 @@ async function cancelRunningQuery() {
   }
 }
 
-async function executeSql(mode = 'query') {
-  const sql = currentSqlText()
-  if (!sql) {
+async function executeSql(mode = 'query', target = 'smart') {
+  syncQuerySelection()
+  const execution = sqlExecutionTarget(target)
+  if (!execution.statements.length) {
     setMessage('SQL 为空', 'warn', logContext())
     return
   }
-  if (mode === 'query' && isDangerousSql(sql) && !await askConfirm('确认执行 SQL', '检测到 UPDATE 或 DELETE 语句没有 WHERE 条件。这个操作可能影响整张表，确定继续执行？', '继续执行')) {
-    addLog('warn', 'SQL execution cancelled by safety guard', logContext({sql: sql.slice(0, 180)}))
+  const dangerousSql = mode === 'query' ? execution.statements.find((statement) => isDangerousSql(statement)) : ''
+  if (dangerousSql && !await askConfirm('确认执行 SQL', '检测到 UPDATE 或 DELETE 语句没有 WHERE 条件。这个操作可能影响整张表，确定继续执行？', '继续执行')) {
+    addLog('warn', 'SQL execution cancelled by safety guard', logContext({scope: execution.scope, sql: dangerousSql}))
     return
   }
-  const executableSql = mode === 'explain' ? explainSql(sql) : sql
-  addQueryHistory(sql)
+  addQueryHistory(execution.historySql)
   const profileId = activeProfileId.value
   const startedAt = perfStart()
-  const queryID = newId()
-  runningQueryId.value = queryID
-  addLog('info', mode === 'explain' ? 'Explain SQL' : 'Execute SQL', logContext({profileId, database: selectedDatabase.value, queryId: queryID, sql: executableSql}))
   busy.value = true
+  let completed = 0
+  let lastResult = null
   try {
-    if (!hasRuntime()) {
-      appendResultTab({
-        mode,
-        sql: executableSql,
-        result: {columns: mode === 'explain' ? ['id', 'select_type', 'table', 'type', 'rows', 'Extra'] : ['id', 'name'], rows: mode === 'explain' ? [[1, 'SIMPLE', 'users', 'ALL', 2, 'Using where']] : [[1, 'preview']], rowsAffected: 1, elapsedMs: 1, message: 'Preview result'}
-      })
-      setMessage('Preview result', 'success', logContext({elapsedMs: elapsedSince(startedAt), rows: 1}))
-      return
+    for (let index = 0; index < execution.statements.length; index += 1) {
+      const sourceSql = execution.statements[index]
+      const executableSql = mode === 'explain' ? explainSql(sourceSql) : sourceSql
+      const queryID = newId()
+      runningQueryId.value = queryID
+      addLog('info', mode === 'explain' ? 'Explain SQL' : 'Execute SQL', logContext({
+        profileId,
+        database: selectedDatabase.value,
+        queryId: queryID,
+        scope: execution.scope,
+        statement: execution.statements.length > 1 ? `${index + 1}/${execution.statements.length}` : '',
+        sql: executableSql
+      }))
+
+      if (!hasRuntime()) {
+        lastResult = {
+          columns: mode === 'explain' ? ['id', 'select_type', 'table', 'type', 'rows', 'Extra'] : ['id', 'name'],
+          rows: mode === 'explain' ? [[1, 'SIMPLE', 'users', 'ALL', 2, 'Using where']] : [[index + 1, 'preview']],
+          rowsAffected: 1,
+          elapsedMs: 1,
+          message: 'Preview result'
+        }
+        appendResultTab({mode, sql: executableSql, result: lastResult, scope: execution.scope})
+      } else {
+        lastResult = await ExecuteWithID(queryID, profileId, executableSql, selectedDatabase.value)
+        appendResultTab({mode, sql: executableSql, result: lastResult, scope: execution.scope})
+        if (mode === 'query' && selectedDatabase.value && isSchemaChangingSql(executableSql)) {
+          invalidateSchemaCache(profileId, selectedDatabase.value, '', {tableList: true})
+          await refreshTables(profileId, selectedDatabase.value, true)
+          addLog('info', 'Schema cache invalidated after DDL', logContext({profileId, database: selectedDatabase.value}))
+        }
+      }
+      completed += 1
     }
-    const nextResult = await ExecuteWithID(queryID, profileId, executableSql, selectedDatabase.value)
-    appendResultTab({mode, sql: executableSql, result: nextResult})
-    if (mode === 'query' && selectedDatabase.value && isSchemaChangingSql(executableSql)) {
-      invalidateSchemaCache(profileId, selectedDatabase.value, '', {tableList: true})
-      await refreshTables(profileId, selectedDatabase.value, true)
-      addLog('info', 'Schema cache invalidated after DDL', logContext({profileId, database: selectedDatabase.value}))
-    }
-    setMessage(nextResult.message || '执行完成', 'success', logContext({elapsedMs: nextResult.elapsedMs, totalElapsedMs: elapsedSince(startedAt), rows: nextResult.rows?.length || 0, affected: nextResult.rowsAffected || 0}))
+    const messageText = execution.statements.length > 1 ? `执行完成：${completed}/${execution.statements.length} 条 SQL` : (lastResult?.message || '执行完成')
+    setMessage(messageText, 'success', logContext({
+      scope: execution.scope,
+      elapsedMs: lastResult?.elapsedMs || 0,
+      totalElapsedMs: elapsedSince(startedAt),
+      statements: completed,
+      rows: lastResult?.rows?.length || 0,
+      affected: lastResult?.rowsAffected || 0
+    }))
     if (selectedTable.value) await loadTablePage(tableData.value.page)
   } catch (error) {
     const message = errorMessage(error)
     const wasCancelled = /context canceled|cancel/i.test(message)
-    setMessage(wasCancelled ? '查询已取消' : message, wasCancelled ? 'warn' : 'error', logContext({operation: mode === 'explain' ? 'explain' : 'execute', queryId: queryID}))
+    setMessage(wasCancelled ? `查询已取消：已完成 ${completed}/${execution.statements.length} 条 SQL` : message, wasCancelled ? 'warn' : 'error', logContext({operation: mode === 'explain' ? 'explain' : 'execute', scope: execution.scope}))
   } finally {
-    if (runningQueryId.value === queryID) runningQueryId.value = ''
+    runningQueryId.value = ''
     busy.value = false
   }
 }
 
-function appendResultTab({mode, sql, result}) {
+function appendResultTab({mode, sql, result, scope = 'statement'}) {
   const tab = {
     id: newId(),
     mode,
     title: `${mode === 'explain' ? 'Explain' : 'Result'} ${resultTabs.value.length + 1}`,
+    scope,
     sql,
     columns: result.columns || [],
     rows: result.rows || [],
@@ -1256,13 +1286,49 @@ function explainSql(sql) {
   return `EXPLAIN ${trimmed}`
 }
 
-function currentSqlText() {
+function syncQuerySelection() {
+  const editor = queryEditorRef.value
+  if (!editor) return
+  querySelection.value = {
+    start: editor.selectionStart ?? 0,
+    end: editor.selectionEnd ?? 0
+  }
+}
+
+function sqlExecutionTarget(target = 'smart') {
   const editor = queryEditorRef.value
   const start = editor?.selectionStart ?? 0
   const end = editor?.selectionEnd ?? 0
   const selected = start !== end ? query.value.slice(start, end).trim() : ''
-  if (selected) return selected
-  return currentStatementAt(query.value, start) || query.value.trim()
+  if ((target === 'selection' || target === 'smart') && selected) {
+    return {
+      scope: 'selection',
+      historySql: selected,
+      statements: splitSqlStatements(selected)
+    }
+  }
+  if (target === 'all') {
+    return {
+      scope: 'all',
+      historySql: query.value.trim(),
+      statements: splitSqlStatements(query.value)
+    }
+  }
+  const statement = currentStatementAt(query.value, start) || query.value.trim()
+  return {
+    scope: 'current',
+    historySql: statement,
+    statements: splitSqlStatements(statement).slice(0, 1)
+  }
+}
+
+function currentSqlText() {
+  return sqlExecutionTarget('smart').statements[0] || ''
+}
+
+function splitSqlStatements(sql) {
+  const spans = statementSpans(sql)
+  return spans.map((span) => sql.slice(span.start, span.end).trim()).filter(Boolean)
 }
 
 function currentStatementAt(sql, cursorIndex = 0) {
@@ -1456,9 +1522,14 @@ function insertDdlTemplate(type, database = selectedDatabase.value, tableName = 
 }
 
 function handleQueryKeydown(event) {
+  if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'Enter') {
+    event.preventDefault()
+    runQuery('all')
+    return
+  }
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
     event.preventDefault()
-    runQuery()
+    runQuery('smart')
   }
 }
 
@@ -2328,12 +2399,14 @@ function demoTableData(page = 1, pageSize = 50) {
             <span class="toolbar-divider"></span>
             <div class="toolbar-group">
               <span class="toolbar-label">Execute</span>
-              <button class="toolbar-action primary-action" :disabled="busy" title="Run selected SQL or statement at cursor" @click="runQuery">
+              <button class="toolbar-action primary-action" :disabled="busy" title="Run selected SQL, otherwise the statement at cursor" @click="runQuery('smart')">
                 <span>▶</span>
-                <span>Run</span>
+                <span>{{ hasQuerySelection ? 'Run Selection' : 'Run Current' }}</span>
               </button>
               <button class="toolbar-action danger-action" :disabled="!runningQueryId" title="Cancel running SQL query" @click="cancelRunningQuery">Cancel</button>
-              <button class="toolbar-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" @click="explainQuery">Explain</button>
+              <button class="toolbar-action" :disabled="busy" title="Run statement at cursor" @click="runQuery('current')">Current</button>
+              <button class="toolbar-action" :disabled="busy" title="Run every SQL statement in the editor" @click="runQuery('all')">All</button>
+              <button class="toolbar-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" @click="explainQuery('smart')">Explain</button>
               <button class="toolbar-action" title="Open SQL file" @click="openSqlFile">Open</button>
               <button class="toolbar-action" title="Format SQL" @click="formatQuery">Format</button>
             </div>
@@ -2363,13 +2436,23 @@ function demoTableData(page = 1, pageSize = 50) {
                 </div>
               </div>
             </div>
-            <span class="shortcut-hint">Cmd/Ctrl + Enter</span>
+            <span class="shortcut-hint">Cmd/Ctrl+Enter current · Shift+Cmd/Ctrl+Enter all</span>
           </div>
           <div class="sql-surface">
             <div class="line-gutter">
               <span v-for="line in 24" :key="line">{{ line }}</span>
             </div>
-            <textarea ref="queryEditorRef" v-model="query" spellcheck="false" data-native-context @keydown="handleQueryKeydown"></textarea>
+            <textarea
+              ref="queryEditorRef"
+              v-model="query"
+              spellcheck="false"
+              data-native-context
+              @keydown="handleQueryKeydown"
+              @select="syncQuerySelection"
+              @keyup="syncQuerySelection"
+              @mouseup="syncQuerySelection"
+              @input="syncQuerySelection"
+            ></textarea>
           </div>
           <div class="query-result">
             <div class="result-toolbar">
