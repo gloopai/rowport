@@ -7,6 +7,9 @@ import SqlEditorToolbar from './components/SqlEditorToolbar.vue'
 import SqlResultPane from './components/SqlResultPane.vue'
 import SqlSidePanel from './components/SqlSidePanel.vue'
 import SqlTextEditor from './components/SqlTextEditor.vue'
+import {useLayoutResize} from './composables/useLayoutResize'
+import {useQueryHistory} from './composables/useQueryHistory'
+import {useResultTabs} from './composables/useResultTabs'
 import {
   BulkInsertRows,
   CancelQuery,
@@ -33,8 +36,6 @@ import {
 } from '../wailsjs/go/main/App'
 
 const STORAGE_KEY = 'mysql-gui.profiles'
-const LAYOUT_KEY = 'mysql-gui.layout'
-const QUERY_HISTORY_KEY = 'mysql-gui.queryHistory'
 const appStartedAt = performance.now()
 
 const hasRuntime = () => Boolean(window.go?.main?.App)
@@ -99,14 +100,8 @@ const query = ref('SELECT 1;')
 const queryEditorRef = ref(null)
 const queryToolbarRef = ref(null)
 const querySelection = ref({start: 0, end: 0})
-const queryHistory = ref([])
-const selectedHistoryId = ref('')
-const historySearch = ref('')
 const runningQueryId = ref('')
 const sqlResultPaneRef = ref(null)
-const resultGridScrollTop = ref(0)
-const resultTabs = ref([])
-const activeResultTabId = ref('')
 const dataGridRef = ref(null)
 const dataGridScrollTop = ref(0)
 const tableData = ref({columns: [], primaryKeys: [], rows: [], total: 0, page: 1, pageSize: 50})
@@ -136,12 +131,7 @@ let confirmResolve = null
 const expandedTree = ref(new Set())
 const tableMetadata = ref({})
 const tableDDLs = ref({})
-const explorerWidth = ref(360)
-const servicesHeight = ref(240)
-const servicesTreeWidth = ref(240)
 const queryToolbarHeight = ref(40)
-const queryResultHeight = ref(240)
-let resizeState = null
 let columnResizeState = null
 let queryToolbarObserver = null
 const VIRTUAL_ROW_HEIGHT = 27
@@ -162,11 +152,16 @@ const canEditSelectedRow = computed(() => canMutateRows.value && Boolean(selecte
 const canDeleteSelectedRow = computed(() => canMutateRows.value && Boolean(selectedRow.value))
 const currentColumnWidthKey = computed(() => `${activeProfileId.value}.${selectedDatabase.value}.${selectedTable.value}`)
 const currentTab = computed(() => openTabs.value.find((tab) => tab.id === activeTabId.value))
-const shellColumns = computed(() => `${explorerWidth.value}px 6px minmax(0, 1fr)`)
-const mainRows = computed(() => `37px 34px minmax(0, 1fr) ${servicesHeight.value}px 24px`)
-const servicesColumns = computed(() => `${servicesTreeWidth.value}px 6px minmax(0, 1fr)`)
 const queryRows = computed(() => `${queryToolbarHeight.value}px minmax(0, 1fr)`)
-const queryMainRows = computed(() => `minmax(120px, 1fr) 6px ${queryResultHeight.value}px`)
+const {
+  shellColumns,
+  mainRows,
+  servicesColumns,
+  queryMainRows,
+  loadLayout,
+  beginResize,
+  resetPaneSize
+} = useLayoutResize()
 const contextMenuStyle = computed(() => ({
   left: `${contextMenu.value.x}px`,
   top: `${contextMenu.value.y}px`,
@@ -174,16 +169,30 @@ const contextMenuStyle = computed(() => ({
   maxHeight: `${Math.max(160, Math.min(CONTEXT_MENU_MAX_HEIGHT, window.innerHeight - 16))}px`
 }))
 const selectedMetadata = computed(() => tableMetadata.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || {columns: [], indexes: []})
-const activeResultTab = computed(() => resultTabs.value.find((tab) => tab.id === activeResultTabId.value) || null)
-const activeResultRows = computed(() => activeResultTab.value?.rows || [])
-const virtualResultRows = computed(() => virtualRows(activeResultRows.value, resultGridScrollTop.value))
-const resultTopSpacerHeight = computed(() => virtualResultRows.value.start * VIRTUAL_ROW_HEIGHT)
-const resultBottomSpacerHeight = computed(() => Math.max(0, (activeResultRows.value.length - virtualResultRows.value.end) * VIRTUAL_ROW_HEIGHT))
 const virtualDataRows = computed(() => virtualRows(tableData.value.rows || [], dataGridScrollTop.value))
 const dataTopSpacerHeight = computed(() => virtualDataRows.value.start * VIRTUAL_ROW_HEIGHT)
 const dataBottomSpacerHeight = computed(() => Math.max(0, ((tableData.value.rows || []).length - virtualDataRows.value.end) * VIRTUAL_ROW_HEIGHT))
 const dataGridColspan = computed(() => tableData.value.columns.length + 2)
-const resultGridColspan = computed(() => (activeResultTab.value?.columns?.length || 0) + 1)
+const {
+  resultTabs,
+  activeResultTabId,
+  activeResultTab,
+  virtualResultRows,
+  resultTopSpacerHeight,
+  resultBottomSpacerHeight,
+  resultGridColspan,
+  handleResultGridScroll,
+  resetResultGridScroll,
+  appendResultTab,
+  closeResultTab
+} = useResultTabs({
+  newId,
+  resultTabKey,
+  formatLogTime,
+  virtualRows,
+  rowHeight: VIRTUAL_ROW_HEIGHT,
+  resultPaneRef: sqlResultPaneRef
+})
 const structureTitle = computed(() => {
   if (!selectedObject.value.table) return 'Structure'
   if (selectedObject.value.type === 'columns') return `${selectedObject.value.table} / columns`
@@ -240,32 +249,31 @@ const pageSizeOptions = [
   {label: '100 rows', value: 100},
   {label: '200 rows', value: 200}
 ]
-const filteredQueryHistory = computed(() => {
-  const search = historySearch.value.trim().toLowerCase()
-  const profileId = activeProfileId.value
-  const database = selectedDatabase.value || ''
-  const scored = queryHistory.value.map((item) => {
-    const sameContext = item.profileId === profileId && item.database === database
-    return {...item, sameContext}
-  })
-  return scored
-    .filter((item) => !search || `${item.sql} ${item.database} ${item.profileName} ${item.status}`.toLowerCase().includes(search))
-    .sort((a, b) => Number(b.favorite) - Number(a.favorite) || Number(b.sameContext) - Number(a.sameContext) || String(b.executedAt).localeCompare(String(a.executedAt)))
-    .slice(0, 60)
+const {
+  selectedHistoryId,
+  historySearch,
+  savedQueryHistory,
+  recentQueryHistory,
+  savedHistoryItem,
+  initializeQueryHistory,
+  recordQueryHistory,
+  historyOptionLabel,
+  toggleSavedHistory,
+  clearRecentHistory,
+  chooseHistory: selectQueryHistory
+} = useQueryHistory({
+  activeProfileId,
+  selectedDatabase,
+  query,
+  normalizeResultSql,
+  splitSqlStatements,
+  currentSqlText,
+  activeProfileName,
+  compactSql,
+  addLog,
+  logContext,
+  newId
 })
-const savedQueryHistory = computed(() => filteredQueryHistory.value.filter((item) => item.favorite).slice(0, 30))
-const recentQueryHistory = computed(() => filteredQueryHistory.value.filter((item) => !item.favorite).slice(0, 60))
-const selectedHistoryItem = computed(() => queryHistory.value.find((item) => item.id === selectedHistoryId.value) || null)
-const currentHistoryItem = computed(() => {
-  const normalizedSql = normalizeResultSql(currentSqlText() || query.value)
-  if (!normalizedSql) return null
-  return queryHistory.value.find((item) => (
-    item.normalizedSql === normalizedSql &&
-    item.profileId === activeProfileId.value &&
-    item.database === (selectedDatabase.value || '')
-  )) || null
-})
-const savedHistoryItem = computed(() => selectedHistoryItem.value || currentHistoryItem.value)
 const orderByOptions = computed(() => [
   {label: 'none', value: ''},
   ...tableData.value.columns.map((column) => ({label: column.name, value: column.name}))
@@ -310,7 +318,7 @@ onMounted(async () => {
   window.addEventListener('contextmenu', preventNativeContextMenu)
   window.addEventListener('selectstart', preventChromeTextSelection)
   window.addEventListener('resize', syncQueryToolbarHeight)
-  queryHistory.value = loadQueryHistory()
+  initializeQueryHistory()
   profiles.value = loadProfiles()
   if (profiles.value.length === 0) {
     profiles.value = [emptyProfile()]
@@ -351,80 +359,8 @@ function syncQueryToolbarHeight() {
   })
 }
 
-function loadLayout() {
-  try {
-    const layout = JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}')
-    explorerWidth.value = clamp(Number(layout.explorerWidth) || 360, 240, 620)
-    servicesHeight.value = clamp(Number(layout.servicesHeight) || 240, 150, 520)
-    servicesTreeWidth.value = clamp(Number(layout.servicesTreeWidth) || 240, 160, 520)
-    queryResultHeight.value = clamp(Number(layout.queryResultHeight) || 240, 120, 560)
-  } catch {
-    persistLayout()
-  }
-}
-
-function persistLayout() {
-  localStorage.setItem(LAYOUT_KEY, JSON.stringify({
-    explorerWidth: explorerWidth.value,
-    servicesHeight: servicesHeight.value,
-    servicesTreeWidth: servicesTreeWidth.value,
-    queryResultHeight: queryResultHeight.value
-  }))
-}
-
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
-}
-
-function beginResize(kind, event) {
-  event.preventDefault()
-  resizeState = {
-    kind,
-    startX: event.clientX,
-    startY: event.clientY,
-    explorerWidth: explorerWidth.value,
-    servicesHeight: servicesHeight.value,
-    servicesTreeWidth: servicesTreeWidth.value,
-    queryResultHeight: queryResultHeight.value
-  }
-  document.body.classList.add('is-resizing')
-  document.body.style.cursor = kind === 'services' || kind === 'queryResult' ? 'row-resize' : 'col-resize'
-  window.addEventListener('mousemove', resizePane)
-  window.addEventListener('mouseup', stopResize)
-}
-
-function resizePane(event) {
-  if (!resizeState) return
-  if (resizeState.kind === 'explorer') {
-    explorerWidth.value = clamp(resizeState.explorerWidth + event.clientX - resizeState.startX, 240, 620)
-  }
-  if (resizeState.kind === 'services') {
-    servicesHeight.value = clamp(resizeState.servicesHeight - (event.clientY - resizeState.startY), 150, 520)
-  }
-  if (resizeState.kind === 'servicesTree') {
-    servicesTreeWidth.value = clamp(resizeState.servicesTreeWidth + event.clientX - resizeState.startX, 160, 520)
-  }
-  if (resizeState.kind === 'queryResult') {
-    queryResultHeight.value = clamp(resizeState.queryResultHeight - (event.clientY - resizeState.startY), 120, 560)
-  }
-}
-
-function stopResize() {
-  if (!resizeState) return
-  resizeState = null
-  document.body.classList.remove('is-resizing')
-  document.body.style.cursor = ''
-  window.removeEventListener('mousemove', resizePane)
-  window.removeEventListener('mouseup', stopResize)
-  persistLayout()
-}
-
-function resetPaneSize(kind) {
-  if (kind === 'explorer') explorerWidth.value = 360
-  if (kind === 'services') servicesHeight.value = 240
-  if (kind === 'servicesTree') servicesTreeWidth.value = 240
-  if (kind === 'queryResult') queryResultHeight.value = 240
-  persistLayout()
 }
 
 watch(selectedDatabase, async (database) => {
@@ -670,20 +606,13 @@ function virtualRows(rows, scrollTop) {
   }
 }
 
-function handleResultGridScroll(event) {
-  resultGridScrollTop.value = event.target.scrollTop
-}
-
 function handleDataGridScroll(event) {
   dataGridScrollTop.value = event.target.scrollTop
 }
 
 function resetGridScroll(kind) {
   if (kind === 'result') {
-    resultGridScrollTop.value = 0
-    nextTick(() => {
-      sqlResultPaneRef.value?.scrollToTop()
-    })
+    resetResultGridScroll()
   }
   if (kind === 'data') {
     dataGridScrollTop.value = 0
@@ -1343,39 +1272,6 @@ async function executeSql(mode = 'query', target = 'smart') {
   }
 }
 
-function appendResultTab({mode, sql, result, scope = 'statement', statementIndex = 0}) {
-  const tabKey = resultTabKey({mode, sql, scope, statementIndex})
-  const existingIndex = resultTabs.value.findIndex((tab) => tab.key === tabKey)
-  const title = existingIndex >= 0
-    ? resultTabs.value[existingIndex].title
-    : `${mode === 'explain' ? 'Explain' : 'Result'} ${resultTabs.value.length + 1}`
-  const tab = {
-    id: existingIndex >= 0 ? resultTabs.value[existingIndex].id : newId(),
-    key: tabKey,
-    mode,
-    title,
-    scope,
-    statementIndex,
-    sql,
-    columns: result.columns || [],
-    rows: result.rows || [],
-    rowsAffected: result.rowsAffected || 0,
-    elapsedMs: result.elapsedMs || 0,
-    message: result.message || '',
-    truncated: Boolean(result.truncated),
-    createdAt: formatLogTime(new Date())
-  }
-  if (existingIndex >= 0) {
-    const nextTabs = [...resultTabs.value]
-    nextTabs[existingIndex] = tab
-    resultTabs.value = nextTabs
-  } else {
-    resultTabs.value = [...resultTabs.value.slice(-9), tab]
-  }
-  activeResultTabId.value = tab.id
-  resetGridScroll('result')
-}
-
 function resultTabKey({mode, sql, scope, statementIndex}) {
   return [
     currentTab.value?.id || 'console',
@@ -1394,18 +1290,6 @@ function normalizeResultSql(sql) {
     .replace(/;+\s*$/g, '')
     .trim()
     .toLowerCase()
-}
-
-function closeResultTab(tabId, event) {
-  event?.stopPropagation()
-  const index = resultTabs.value.findIndex((tab) => tab.id === tabId)
-  if (index === -1) return
-  const wasActive = activeResultTabId.value === tabId
-  const nextTabs = resultTabs.value.filter((tab) => tab.id !== tabId)
-  resultTabs.value = nextTabs
-  if (wasActive) {
-    activeResultTabId.value = (nextTabs[index] || nextTabs[index - 1])?.id || ''
-  }
 }
 
 function explainSql(sql) {
@@ -1534,138 +1418,6 @@ function statementSpans(sql) {
   return spans
 }
 
-function loadQueryHistory() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(QUERY_HISTORY_KEY) || '[]')
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .map((item) => normalizeHistoryItem(item))
-      .filter(Boolean)
-      .slice(0, 200)
-  } catch {
-    return []
-  }
-}
-
-function persistQueryHistory() {
-  const favorites = queryHistory.value.filter((item) => item.favorite)
-  const recent = queryHistory.value.filter((item) => !item.favorite).slice(0, 180)
-  localStorage.setItem(QUERY_HISTORY_KEY, JSON.stringify([...favorites, ...recent].slice(0, 220)))
-}
-
-function normalizeHistoryItem(item) {
-  if (typeof item === 'string') {
-    const sql = item.trim()
-    if (!sql) return null
-    return {
-      id: newId(),
-      sql,
-      normalizedSql: normalizeResultSql(sql),
-      profileId: '',
-      profileName: '',
-      database: '',
-      mode: 'query',
-      scope: 'legacy',
-      status: 'unknown',
-      rows: 0,
-      affected: 0,
-      elapsedMs: 0,
-      statements: splitSqlStatements(sql).length || 1,
-      favorite: false,
-      executedAt: new Date(0).toISOString(),
-      error: ''
-    }
-  }
-  if (!item || typeof item !== 'object' || typeof item.sql !== 'string' || !item.sql.trim()) return null
-  const sql = item.sql.trim()
-  return {
-    id: item.id || newId(),
-    sql,
-    normalizedSql: item.normalizedSql || normalizeResultSql(sql),
-    profileId: item.profileId || '',
-    profileName: item.profileName || '',
-    database: item.database || '',
-    mode: item.mode || 'query',
-    scope: item.scope || 'current',
-    status: item.status || 'unknown',
-    rows: Number(item.rows) || 0,
-    affected: Number(item.affected) || 0,
-    elapsedMs: Number(item.elapsedMs) || 0,
-    statements: Number(item.statements) || 1,
-    favorite: Boolean(item.favorite),
-    executedAt: item.executedAt || new Date(0).toISOString(),
-    error: item.error || ''
-  }
-}
-
-function recordQueryHistory(sql, meta = {}) {
-  const normalizedSql = normalizeResultSql(sql)
-  if (!normalizedSql) return
-  const profileId = activeProfileId.value
-  const database = selectedDatabase.value || ''
-  const mode = meta.mode || 'query'
-  const scope = meta.scope || 'current'
-  const existingIndex = queryHistory.value.findIndex((item) => (
-    item.normalizedSql === normalizedSql &&
-    item.profileId === profileId &&
-    item.database === database &&
-    item.mode === mode &&
-    item.scope === scope
-  ))
-  const existing = existingIndex >= 0 ? queryHistory.value[existingIndex] : null
-  const item = {
-    id: existing?.id || newId(),
-    sql: String(sql || '').trim(),
-    normalizedSql,
-    profileId,
-    profileName: activeProfileName(profileId),
-    database,
-    mode,
-    scope,
-    status: meta.status || 'success',
-    rows: Number(meta.rows) || 0,
-    affected: Number(meta.affected) || 0,
-    elapsedMs: Number(meta.elapsedMs) || 0,
-    statements: Number(meta.statements) || 1,
-    favorite: Boolean(existing?.favorite),
-    executedAt: new Date().toISOString(),
-    error: meta.error || ''
-  }
-  queryHistory.value = [item, ...queryHistory.value.filter((_, index) => index !== existingIndex)]
-    .sort((a, b) => Number(b.favorite) - Number(a.favorite) || String(b.executedAt).localeCompare(String(a.executedAt)))
-    .slice(0, 220)
-  selectedHistoryId.value = ''
-  persistQueryHistory()
-}
-
-function historyOptionLabel(item) {
-  const mark = item.favorite ? '★ ' : ''
-  const status = item.status === 'success' ? 'ok' : item.status
-  const context = item.database || item.profileName ? ` · ${[item.profileName, item.database].filter(Boolean).join('/')}` : ''
-  const stats = item.status === 'success' ? ` · ${item.rows}r ${item.elapsedMs}ms` : item.error ? ` · ${item.error.slice(0, 32)}` : ''
-  return `${mark}${compactSql(item.sql).slice(0, 72)} · ${status}${context}${stats}`
-}
-
-function toggleSavedHistory(item = savedHistoryItem.value) {
-  const targetSql = currentSqlText() || query.value.trim()
-  let target = item
-  if (!target && targetSql) {
-    recordQueryHistory(targetSql, {status: 'saved', mode: 'query', scope: 'favorite'})
-    target = queryHistory.value[0]
-  }
-  if (!target) return
-  queryHistory.value = queryHistory.value.map((entry) => entry.id === target.id ? {...entry, favorite: !entry.favorite} : entry)
-  selectedHistoryId.value = target.id
-  persistQueryHistory()
-}
-
-function clearRecentHistory() {
-  queryHistory.value = queryHistory.value.filter((item) => item.favorite)
-  selectedHistoryId.value = ''
-  persistQueryHistory()
-  addLog('info', 'Clear recent SQL history', logContext({saved: queryHistory.value.length}))
-}
-
 function isDangerousSql(sql) {
   const normalized = sql
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
@@ -1684,15 +1436,6 @@ function isSchemaChangingSql(sql) {
     .trim()
     .toUpperCase()
   return /^(ALTER|CREATE|DROP|RENAME|TRUNCATE)\b/.test(normalized)
-}
-
-function applyQueryHistory() {
-  if (!selectedHistoryId.value) return
-  const item = selectedHistoryItem.value
-  if (item) {
-    query.value = item.sql
-    addLog('debug', 'Load SQL from history', logContext({historyId: item.id, status: item.status, elapsedMs: item.elapsedMs}))
-  }
 }
 
 async function openSqlFile() {
@@ -2177,9 +1920,8 @@ function choosePageSize(value) {
 }
 
 function chooseHistory(value) {
-  selectedHistoryId.value = value
+  selectQueryHistory(value)
   closeCustomSelect()
-  applyQueryHistory()
 }
 
 function chooseTableOrderBy(value) {
