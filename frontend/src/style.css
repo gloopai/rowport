@@ -191,7 +191,7 @@ h2 {
 }
 
 .row-dialog {
-    width: min(820px, 100%);
+    width: min(1100px, calc(100vw - 32px));
 }
 
 .result-detail-dialog {
@@ -560,7 +560,18 @@ h2 {
 }
 
 .row-field.is-long {
-    min-height: 96px;
+    grid-template-columns: minmax(180px, 260px) 92px minmax(420px, 1fr);
+    min-height: 176px;
+}
+
+.row-field.is-long > textarea {
+    min-height: 150px;
+    overflow: auto;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    line-height: 20px;
+    resize: both;
+    white-space: pre;
 }
 
 .row-field input:disabled,

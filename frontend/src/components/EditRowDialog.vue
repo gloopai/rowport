@@ -78,6 +78,7 @@ const emit = defineEmits(['close', 'submit'])
             v-if="isLongTextColumn(column)"
             v-model="values[column.name]"
             :disabled="isPrimaryKeyColumn(column) || nulls[column.name]"
+            wrap="off"
             rows="4"
             data-native-context
           ></textarea>

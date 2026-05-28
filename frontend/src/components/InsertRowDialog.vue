@@ -78,6 +78,7 @@ const editableColumns = computed(() => props.columns.filter((item) => !String(it
             v-model="values[column.name]"
             :disabled="nulls[column.name]"
             :placeholder="column.type"
+            wrap="off"
             rows="4"
             data-native-context
           ></textarea>
