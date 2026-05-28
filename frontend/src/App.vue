@@ -256,7 +256,7 @@ const visibleLogs = computed(() => {
   return operationLogs.value.filter((log) => {
     if (logLevelFilter.value !== 'all' && log.level !== logLevelFilter.value) return false
     if (!query) return true
-    return `${log.time} ${log.level} ${log.text} ${logContextSummary(log.context)}`.toLowerCase().includes(query)
+    return `${log.time} ${log.level} ${log.text} ${logContextSummary(log.context)} ${logSql(log.context)}`.toLowerCase().includes(query)
   })
 })
 
@@ -642,7 +642,14 @@ function clearLogs() {
 }
 
 function copyVisibleLogs() {
-  const lines = visibleLogs.value.map((log) => `[${log.time}] ${log.level.toUpperCase()} ${log.text} ${logContextSummary(log.context)}`.trim())
+  const lines = visibleLogs.value.map((log) => {
+    const summary = logContextSummary(log.context)
+    const sql = logSql(log.context)
+    return [
+      `[${log.time}] ${log.level.toUpperCase()} ${log.text} ${summary}`.trim(),
+      sql ? `SQL: ${sql}` : ''
+    ].filter(Boolean).join('\n')
+  })
   copyText(lines.join('\n'), '操作日志')
 }
 
@@ -675,9 +682,61 @@ function csvValue(value) {
 
 function logContextSummary(context) {
   return Object.entries(context || {})
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .filter(([key, value]) => key !== 'sql' && value !== undefined && value !== null && value !== '')
     .map(([key, value]) => `${key}=${value}`)
     .join('  ')
+}
+
+function logSql(context) {
+  return String(context?.sql || '').trim()
+}
+
+function compactSql(sql) {
+  return String(sql || '').replace(/\s+/g, ' ').trim()
+}
+
+function quoteSqlIdentifier(value) {
+  return `\`${String(value || '').replace(/`/g, '``')}\``
+}
+
+function logSqlLiteral(value) {
+  if (value === null || value === undefined) return 'NULL'
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
+  return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "''")}'`
+}
+
+function placeholderList(count) {
+  return Array.from({length: count}, () => '?').join(', ')
+}
+
+function tablePageLogSql({database, table, columns = [], where = '', orderBy = '', orderDir = 'ASC', page = 1, pageSize = 50}) {
+  const selectedColumns = columns.length ? columns.map((column) => quoteSqlIdentifier(column.name || column)).join(', ') : '*'
+  const safeOrderDir = orderDir === 'DESC' ? 'DESC' : 'ASC'
+  const offset = (Number(page) - 1) * Number(pageSize)
+  const whereClause = where ? ` WHERE ${where}` : ''
+  const orderClause = orderBy ? ` ORDER BY ${quoteSqlIdentifier(orderBy)} ${safeOrderDir}` : ''
+  return `SELECT ${selectedColumns} FROM ${quoteSqlIdentifier(database)}.${quoteSqlIdentifier(table)}${whereClause}${orderClause} LIMIT ${Number(pageSize)} OFFSET ${offset}`
+}
+
+function insertRowLogSql(database, table, values) {
+  const columns = Object.keys(values || {})
+  return `INSERT INTO ${quoteSqlIdentifier(database)}.${quoteSqlIdentifier(table)} (${columns.map(quoteSqlIdentifier).join(', ')}) VALUES (${placeholderList(columns.length)})`
+}
+
+function updateRowLogSql(database, table, values, keyValues) {
+  const setColumns = Object.keys(values || {}).filter((column) => !Object.prototype.hasOwnProperty.call(keyValues || {}, column))
+  const whereColumns = Object.keys(keyValues || {})
+  const setClause = setColumns.map((column) => `${quoteSqlIdentifier(column)} = ?`).join(', ')
+  const whereClause = whereColumns.map((column) => `${quoteSqlIdentifier(column)} = ${logSqlLiteral(keyValues[column])}`).join(' AND ')
+  return `UPDATE ${quoteSqlIdentifier(database)}.${quoteSqlIdentifier(table)} SET ${setClause} WHERE ${whereClause} LIMIT 1`
+}
+
+function deleteRowLogSql(database, table, keyValues) {
+  const whereClause = Object.keys(keyValues || {})
+    .map((column) => `${quoteSqlIdentifier(column)} = ${logSqlLiteral(keyValues[column])}`)
+    .join(' AND ')
+  return `DELETE FROM ${quoteSqlIdentifier(database)}.${quoteSqlIdentifier(table)} WHERE ${whereClause} LIMIT 1`
 }
 
 function openTableContextMenu(profileId, database, table, event) {
@@ -1129,7 +1188,7 @@ async function executeSql(mode = 'query') {
   const startedAt = perfStart()
   const queryID = newId()
   runningQueryId.value = queryID
-  addLog('info', mode === 'explain' ? 'Explain SQL' : 'Execute SQL', logContext({profileId, database: selectedDatabase.value, queryId: queryID, sql: executableSql.slice(0, 180)}))
+  addLog('info', mode === 'explain' ? 'Explain SQL' : 'Execute SQL', logContext({profileId, database: selectedDatabase.value, queryId: queryID, sql: executableSql}))
   busy.value = true
   try {
     if (!hasRuntime()) {
@@ -1407,7 +1466,21 @@ async function loadTablePage(page = tableData.value.page) {
   if (!selectedDatabase.value || !selectedTable.value) return
   const startedAt = perfStart()
   const profileId = activeProfileId.value
-  addLog('info', 'Load table page', logContext({profileId, page, pageSize: tableData.value.pageSize}))
+  addLog('info', 'Load table page', logContext({
+    profileId,
+    page,
+    pageSize: tableData.value.pageSize,
+    sql: tablePageLogSql({
+      database: selectedDatabase.value,
+      table: selectedTable.value,
+      columns: tableData.value.columns,
+      where: tableWhere.value,
+      orderBy: tableOrderBy.value,
+      orderDir: tableOrderDir.value,
+      page,
+      pageSize: Number(tableData.value.pageSize || 50)
+    })
+  }))
   if (!hasRuntime()) {
     tableData.value = demoTableData(page, tableData.value.pageSize)
     selectedRowIndex.value = -1
@@ -1871,7 +1944,12 @@ function openInsertRow() {
 
 async function saveInsertRow() {
   const profileId = activeProfileId.value
-  addLog('info', 'Insert row', logContext({profileId, columns: Object.keys(insertValues.value).length}))
+  const values = mutationValuesFrom(insertValues.value, insertNulls.value)
+  addLog('info', 'Insert row', logContext({
+    profileId,
+    columns: Object.keys(values).length,
+    sql: insertRowLogSql(selectedDatabase.value, selectedTable.value, values)
+  }))
   busy.value = true
   try {
     await InsertTableRow({
@@ -1879,7 +1957,7 @@ async function saveInsertRow() {
       database: selectedDatabase.value,
       table: selectedTable.value,
       keyValues: {},
-      values: mutationValuesFrom(insertValues.value, insertNulls.value)
+      values
     })
     insertDialogOpen.value = false
     await loadTablePage(tableData.value.page)
@@ -1893,7 +1971,12 @@ async function saveInsertRow() {
 
 async function saveRow() {
   const profileId = activeProfileId.value
-  addLog('info', 'Update row', logContext({profileId, keys: Object.entries(editKeys.value).map(([key, value]) => `${key}=${value}`).join(', ')}))
+  const values = mutationValuesFrom(editValues.value, editNulls.value)
+  addLog('info', 'Update row', logContext({
+    profileId,
+    keys: Object.entries(editKeys.value).map(([key, value]) => `${key}=${value}`).join(', '),
+    sql: updateRowLogSql(selectedDatabase.value, selectedTable.value, values, editKeys.value)
+  }))
   busy.value = true
   try {
     await UpdateTableRow({
@@ -1901,7 +1984,7 @@ async function saveRow() {
       database: selectedDatabase.value,
       table: selectedTable.value,
       keyValues: editKeys.value,
-      values: mutationValuesFrom(editValues.value, editNulls.value)
+      values
     })
     editDialogOpen.value = false
     await loadTablePage(tableData.value.page)
@@ -1920,9 +2003,13 @@ async function deleteSelectedRow() {
 
 async function deleteRow(row) {
   const profileId = activeProfileId.value
-  addLog('warn', 'Request delete row', logContext({profileId, keys: tableData.value.primaryKeys.map((key) => `${key}=${row[key]}`).join(', ')}))
-  if (!canMutateRows.value || !await askConfirm('删除行', '确定删除选中的一行数据？这个操作会直接写入数据库。', '删除')) return
   const keyValues = Object.fromEntries(tableData.value.primaryKeys.map((key) => [key, row[key]]))
+  if (!canMutateRows.value || !await askConfirm('删除行', '确定删除选中的一行数据？这个操作会直接写入数据库。', '删除')) return
+  addLog('warn', 'Delete row', logContext({
+    profileId,
+    keys: tableData.value.primaryKeys.map((key) => `${key}=${row[key]}`).join(', '),
+    sql: deleteRowLogSql(selectedDatabase.value, selectedTable.value, keyValues)
+  }))
   busy.value = true
   try {
     await DeleteTableRow({
@@ -2518,6 +2605,7 @@ function demoTableData(page = 1, pageSize = 50) {
               <span class="log-level">{{ log.level }}</span>
               <span class="log-text">{{ log.text }}</span>
               <span v-if="logContextSummary(log.context)" class="log-context">{{ logContextSummary(log.context) }}</span>
+              <pre v-if="logSql(log.context)" class="log-sql">{{ compactSql(logSql(log.context)) }}</pre>
             </div>
           </div>
         </div>
@@ -4067,7 +4155,7 @@ button:disabled {
   grid-template-columns: 72px 58px minmax(180px, 1fr) minmax(160px, 0.8fr);
   gap: 10px;
   min-width: 720px;
-  padding: 2px 4px;
+  padding: 3px 4px;
   border-radius: 3px;
 }
 
@@ -4096,6 +4184,18 @@ button:disabled {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.log-sql {
+  grid-column: 3 / 5;
+  margin: -4px 0 4px;
+  padding: 6px 8px;
+  color: #a9d7ff;
+  background: #191b20;
+  border: 1px solid #343942;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .level-success .log-level {
