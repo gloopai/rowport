@@ -155,7 +155,7 @@ const currentTab = computed(() => openTabs.value.find((tab) => tab.id === active
 const shellColumns = computed(() => `${explorerWidth.value}px 6px minmax(0, 1fr)`)
 const mainRows = computed(() => `37px 34px minmax(0, 1fr) ${servicesHeight.value}px 24px`)
 const servicesColumns = computed(() => `${servicesTreeWidth.value}px 6px minmax(0, 1fr)`)
-const queryRows = computed(() => `40px minmax(120px, 1fr) 6px ${queryResultHeight.value}px`)
+const queryRows = computed(() => `auto minmax(120px, 1fr) 6px ${queryResultHeight.value}px`)
 const contextMenuStyle = computed(() => ({
   left: `${contextMenu.value.x}px`,
   top: `${contextMenu.value.y}px`,
@@ -3975,8 +3975,11 @@ button:disabled {
 .query-toolbar {
   display: flex;
   align-items: center;
+  align-content: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
+  min-height: 40px;
   padding: 0 10px;
   background: linear-gradient(#292b2f, #25272b);
   border-bottom: 1px solid var(--line);
@@ -4027,7 +4030,7 @@ button:disabled {
 .toolbar-group {
   display: inline-flex;
   align-items: center;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   gap: 4px;
   min-width: 0;
 }
@@ -4039,6 +4042,7 @@ button:disabled {
 }
 
 .toolbar-divider {
+  flex: 0 0 auto;
   width: 1px;
   height: 20px;
   background: #3b3e44;
@@ -4091,12 +4095,13 @@ button:disabled {
 }
 
 .history-group {
-  max-width: min(340px, 30vw);
+  flex: 0 1 280px;
+  max-width: min(320px, 36vw);
 }
 
 .history-group .custom-select {
-  min-width: 210px;
-  max-width: 280px;
+  min-width: 160px;
+  max-width: 260px;
 }
 
 .history-search {
@@ -4140,6 +4145,57 @@ button:disabled {
   color: #737982;
   font-size: 11px;
   white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .query-toolbar {
+    gap: 6px;
+  }
+
+  .query-toolbar-title {
+    min-width: 138px;
+  }
+
+  .toolbar-label,
+  .shortcut-hint {
+    display: none;
+  }
+
+  .toolbar-action,
+  .template-action {
+    padding: 0 7px;
+  }
+
+  .history-group {
+    max-width: 240px;
+  }
+}
+
+@media (max-width: 1040px) {
+  .query-toolbar-title {
+    min-width: auto;
+  }
+
+  .query-toolbar-title > div {
+    display: none;
+  }
+
+  .toolbar-divider {
+    display: none;
+  }
+
+  .template-action {
+    padding: 0 6px;
+  }
+
+  .history-group {
+    flex-basis: 210px;
+    max-width: 220px;
+  }
+
+  .history-group .custom-select {
+    min-width: 146px;
+  }
 }
 
 .sql-surface {
