@@ -91,8 +91,12 @@ const query = ref('SELECT 1;')
 const queryEditorRef = ref(null)
 const queryHistory = ref([])
 const selectedHistoryIndex = ref('')
+const resultGridRef = ref(null)
+const resultGridScrollTop = ref(0)
 const resultTabs = ref([])
 const activeResultTabId = ref('')
+const dataGridRef = ref(null)
+const dataGridScrollTop = ref(0)
 const tableData = ref({columns: [], primaryKeys: [], rows: [], total: 0, page: 1, pageSize: 50})
 const selectedRowIndex = ref(-1)
 const tableWhere = ref('')
@@ -125,6 +129,9 @@ const servicesHeight = ref(240)
 const servicesTreeWidth = ref(240)
 let resizeState = null
 let columnResizeState = null
+const VIRTUAL_ROW_HEIGHT = 27
+const VIRTUAL_VISIBLE_ROWS = 80
+const VIRTUAL_OVERSCAN = 12
 
 const selectedProfile = computed(() => profiles.value.find((item) => item.id === selectedProfileId.value))
 const activeProfileId = computed(() => currentTab.value?.profileId || selectedProfileId.value || connectedProfileId.value)
@@ -143,6 +150,15 @@ const mainRows = computed(() => `37px 34px minmax(0, 1fr) ${servicesHeight.value
 const servicesColumns = computed(() => `${servicesTreeWidth.value}px 6px minmax(0, 1fr)`)
 const selectedMetadata = computed(() => tableMetadata.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || {columns: [], indexes: []})
 const activeResultTab = computed(() => resultTabs.value.find((tab) => tab.id === activeResultTabId.value) || null)
+const activeResultRows = computed(() => activeResultTab.value?.rows || [])
+const virtualResultRows = computed(() => virtualRows(activeResultRows.value, resultGridScrollTop.value))
+const resultTopSpacerHeight = computed(() => virtualResultRows.value.start * VIRTUAL_ROW_HEIGHT)
+const resultBottomSpacerHeight = computed(() => Math.max(0, (activeResultRows.value.length - virtualResultRows.value.end) * VIRTUAL_ROW_HEIGHT))
+const virtualDataRows = computed(() => virtualRows(tableData.value.rows || [], dataGridScrollTop.value))
+const dataTopSpacerHeight = computed(() => virtualDataRows.value.start * VIRTUAL_ROW_HEIGHT)
+const dataBottomSpacerHeight = computed(() => Math.max(0, ((tableData.value.rows || []).length - virtualDataRows.value.end) * VIRTUAL_ROW_HEIGHT))
+const dataGridColspan = computed(() => tableData.value.columns.length + 2)
+const resultGridColspan = computed(() => (activeResultTab.value?.columns?.length || 0) + 1)
 const structureTitle = computed(() => {
   if (!selectedObject.value.table) return 'Structure'
   if (selectedObject.value.type === 'columns') return `${selectedObject.value.table} / columns`
@@ -349,6 +365,7 @@ watch(selectedDatabase, async (database) => {
 
 watch(selectedTable, async (table) => {
   if (table) {
+    resetGridScroll('data')
     await loadTableMetadata(activeProfileId.value, selectedDatabase.value, table)
     if (currentTab.value?.kind === 'data') {
       selectedObject.value = {profileId: activeProfileId.value, type: 'table', database: selectedDatabase.value, table}
@@ -540,6 +557,44 @@ function perfStart() {
 
 function elapsedSince(startedAt) {
   return Math.max(0, Math.round(performance.now() - startedAt))
+}
+
+function virtualRows(rows, scrollTop) {
+  const total = rows.length
+  if (total <= VIRTUAL_VISIBLE_ROWS + VIRTUAL_OVERSCAN * 2) {
+    return {items: rows.map((row, index) => ({row, index})), start: 0, end: total}
+  }
+  const firstVisible = Math.floor(scrollTop / VIRTUAL_ROW_HEIGHT)
+  const start = Math.max(0, firstVisible - VIRTUAL_OVERSCAN)
+  const end = Math.min(total, start + VIRTUAL_VISIBLE_ROWS + VIRTUAL_OVERSCAN * 2)
+  return {
+    items: rows.slice(start, end).map((row, offset) => ({row, index: start + offset})),
+    start,
+    end
+  }
+}
+
+function handleResultGridScroll(event) {
+  resultGridScrollTop.value = event.target.scrollTop
+}
+
+function handleDataGridScroll(event) {
+  dataGridScrollTop.value = event.target.scrollTop
+}
+
+function resetGridScroll(kind) {
+  if (kind === 'result') {
+    resultGridScrollTop.value = 0
+    nextTick(() => {
+      if (resultGridRef.value) resultGridRef.value.scrollTop = 0
+    })
+  }
+  if (kind === 'data') {
+    dataGridScrollTop.value = 0
+    nextTick(() => {
+      if (dataGridRef.value) dataGridRef.value.scrollTop = 0
+    })
+  }
 }
 
 function addLog(level, text, context = {}) {
@@ -1069,6 +1124,7 @@ function appendResultTab({mode, sql, result}) {
   }
   resultTabs.value = [...resultTabs.value.slice(-9), tab]
   activeResultTabId.value = tab.id
+  resetGridScroll('result')
 }
 
 function closeResultTab(tabId, event) {
@@ -1293,6 +1349,7 @@ async function loadTablePage(page = tableData.value.page) {
   if (!hasRuntime()) {
     tableData.value = demoTableData(page, tableData.value.pageSize)
     selectedRowIndex.value = -1
+    resetGridScroll('data')
     addLog('success', 'Preview table data loaded', logContext({rows: tableData.value.rows.length, elapsedMs: elapsedSince(startedAt)}))
     return
   }
@@ -1309,6 +1366,7 @@ async function loadTablePage(page = tableData.value.page) {
       orderDir: tableOrderDir.value
     })
     selectedRowIndex.value = -1
+    resetGridScroll('data')
     addLog('success', 'Table page loaded', logContext({page: tableData.value.page, rows: tableData.value.rows.length, total: tableData.value.total, elapsedMs: elapsedSince(startedAt)}))
   } catch (error) {
     setMessage(errorMessage(error), 'error', logContext({operation: 'loadTablePage'}))
@@ -2185,7 +2243,7 @@ function demoTableData(page = 1, pageSize = 50) {
                 <button :disabled="!activeResultTab?.columns?.length" @click="exportResultJson">JSON</button>
               </div>
             </div>
-            <div class="grid-wrap">
+            <div ref="resultGridRef" class="grid-wrap" @scroll="handleResultGridScroll">
               <table v-if="activeResultTab?.columns?.length" class="data-grid">
                 <thead>
                   <tr>
@@ -2194,9 +2252,15 @@ function demoTableData(page = 1, pageSize = 50) {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(row, rowIndex) in activeResultTab.rows" :key="rowIndex" @dblclick="openResultDetail(row, rowIndex)">
-                    <td class="row-num">{{ rowIndex + 1 }}</td>
-                    <td v-for="(value, cellIndex) in row" :key="cellIndex">{{ value ?? '<null>' }}</td>
+                  <tr v-if="resultTopSpacerHeight" class="virtual-spacer-row">
+                    <td :colspan="resultGridColspan" :style="{height: `${resultTopSpacerHeight}px`}"></td>
+                  </tr>
+                  <tr v-for="item in virtualResultRows.items" :key="item.index" @dblclick="openResultDetail(item.row, item.index)">
+                    <td class="row-num">{{ item.index + 1 }}</td>
+                    <td v-for="(value, cellIndex) in item.row" :key="cellIndex">{{ value ?? '<null>' }}</td>
+                  </tr>
+                  <tr v-if="resultBottomSpacerHeight" class="virtual-spacer-row">
+                    <td :colspan="resultGridColspan" :style="{height: `${resultBottomSpacerHeight}px`}"></td>
                   </tr>
                 </tbody>
               </table>
@@ -2292,7 +2356,7 @@ function demoTableData(page = 1, pageSize = 50) {
             </div>
           </div>
 
-          <div class="grid-wrap">
+          <div ref="dataGridRef" class="grid-wrap" @scroll="handleDataGridScroll">
             <table v-if="tableData.columns.length" class="data-grid" @click.stop>
               <thead>
                 <tr>
@@ -2306,19 +2370,25 @@ function demoTableData(page = 1, pageSize = 50) {
                 </tr>
               </thead>
               <tbody>
+                <tr v-if="dataTopSpacerHeight" class="virtual-spacer-row">
+                  <td :colspan="dataGridColspan" :style="{height: `${dataTopSpacerHeight}px`}"></td>
+                </tr>
                 <tr
-                  v-for="(row, index) in tableData.rows"
-                  :key="index"
-                  :class="{'selected-row': isSelectedDataRow(index)}"
-                  @click="selectDataRow(index)"
-                  @dblclick="openEditRow(row)"
+                  v-for="item in virtualDataRows.items"
+                  :key="item.index"
+                  :class="{'selected-row': isSelectedDataRow(item.index)}"
+                  @click="selectDataRow(item.index)"
+                  @dblclick="openEditRow(item.row)"
                 >
-                  <td class="row-num">{{ (tableData.page - 1) * tableData.pageSize + index + 1 }}</td>
-                  <td v-for="column in tableData.columns" :key="column.name" :style="{width: `${columnWidth(column.name)}px`, minWidth: `${columnWidth(column.name)}px`}">{{ row[column.name] ?? '<null>' }}</td>
+                  <td class="row-num">{{ (tableData.page - 1) * tableData.pageSize + item.index + 1 }}</td>
+                  <td v-for="column in tableData.columns" :key="column.name" :style="{width: `${columnWidth(column.name)}px`, minWidth: `${columnWidth(column.name)}px`}">{{ item.row[column.name] ?? '<null>' }}</td>
                   <td class="row-actions">
-                    <button :disabled="!canMutateRows" @click.stop="openEditRow(row)">Edit</button>
-                    <button :disabled="!canMutateRows" @click.stop="deleteRow(row)">Delete</button>
+                    <button :disabled="!canMutateRows" @click.stop="openEditRow(item.row)">Edit</button>
+                    <button :disabled="!canMutateRows" @click.stop="deleteRow(item.row)">Delete</button>
                   </td>
+                </tr>
+                <tr v-if="dataBottomSpacerHeight" class="virtual-spacer-row">
+                  <td :colspan="dataGridColspan" :style="{height: `${dataBottomSpacerHeight}px`}"></td>
                 </tr>
               </tbody>
             </table>
@@ -3786,6 +3856,20 @@ button:disabled {
 
 .data-grid tbody tr.selected-row:hover td {
   background: #30415b;
+}
+
+.data-grid .virtual-spacer-row td {
+  height: auto;
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  background: #1f2023;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.data-grid .virtual-spacer-row:hover td {
+  background: #1f2023;
 }
 
 .row-num {
