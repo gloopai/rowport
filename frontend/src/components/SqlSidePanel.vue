@@ -118,8 +118,8 @@ const emit = defineEmits([
 .tool-panel-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  gap: 5px;
+  padding: 11px 10px;
   border-top: 1px solid var(--line);
 }
 
@@ -149,9 +149,9 @@ const emit = defineEmits([
   font: inherit;
   line-height: 1;
   text-align: left;
-  background: #2b2e34;
-  border: 1px solid #3a3e45;
-  border-radius: 4px;
+  background: #282b30;
+  border: 1px solid #3a3f47;
+  border-radius: 3px;
   box-shadow: none;
   appearance: none;
 }
@@ -172,8 +172,8 @@ const emit = defineEmits([
 
 .tool-panel-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
 }
 
 .history-panel-section {

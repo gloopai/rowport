@@ -46,6 +46,7 @@ defineExpose({getElement})
 .sql-surface {
   display: grid;
   grid-template-columns: 68px minmax(0, 1fr);
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: #1f2023;
@@ -63,6 +64,8 @@ defineExpose({getElement})
 }
 
 textarea {
+  display: block;
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -71,9 +74,13 @@ textarea {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   line-height: 24px;
   resize: none;
+  border: 0;
+  border-radius: 0;
   outline: none;
+  box-shadow: none;
   background:
     linear-gradient(transparent 23px, rgba(255, 255, 255, 0.025) 24px) 0 0 / 100% 24px,
   #1f2023;
+  appearance: none;
 }
 </style>

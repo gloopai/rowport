@@ -3051,7 +3051,7 @@ button:disabled {
 
 .query-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 268px;
+  grid-template-columns: minmax(0, 1fr) 220px;
   min-height: 0;
   overflow: hidden;
 }
@@ -3065,7 +3065,7 @@ button:disabled {
 
 @media (max-width: 1040px) {
   .query-workspace {
-    grid-template-columns: minmax(0, 1fr) 220px;
+    grid-template-columns: minmax(0, 1fr) 196px;
   }
 }
 

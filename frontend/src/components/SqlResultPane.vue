@@ -109,6 +109,7 @@ defineExpose({scrollToTop})
 .query-result {
   display: grid;
   grid-template-rows: 31px minmax(0, 1fr);
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: #1f2023;
@@ -146,7 +147,10 @@ defineExpose({scrollToTop})
   padding: 0 6px 0 9px;
   color: #9fa6b2;
   background: transparent;
-  border-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  box-shadow: none;
+  appearance: none;
 }
 
 .result-tabs button.active {
@@ -177,7 +181,16 @@ defineExpose({scrollToTop})
   padding: 0 7px;
   color: #aeb8c7;
   background: #2d3035;
-  border-color: #3e434a;
+  border: 1px solid #3e434a;
+  border-radius: 3px;
+  box-shadow: none;
+  appearance: none;
+}
+
+.result-actions button:hover:not(:disabled) {
+  color: #eef2f8;
+  background: #383d45;
+  border-color: #4b5360;
 }
 
 .grid-wrap {
