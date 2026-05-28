@@ -18,6 +18,7 @@ import SqlResultPane from './components/SqlResultPane.vue'
 import SqlSidePanel from './components/SqlSidePanel.vue'
 import SqlTextEditor from './components/SqlTextEditor.vue'
 import StructureView from './components/StructureView.vue'
+import TableContextMenu from './components/TableContextMenu.vue'
 import {useConnections} from './composables/useConnections'
 import {useLayoutResize} from './composables/useLayoutResize'
 import {logLevelOptions, useOperationLogs} from './composables/useOperationLogs'
@@ -1058,29 +1059,15 @@ function errorMessage(error) {
       @confirm="confirmCsvImport"
     />
 
-    <Teleport to="body">
-      <div
-        v-if="contextMenu.open"
-        class="context-menu"
-        :style="contextMenuStyle"
-        @click.stop
-        @contextmenu.prevent.stop
-      >
-        <button @click="openContextTableData">Open Data</button>
-        <button @click="openContextTableStructure('columns')">Columns</button>
-        <button @click="openContextTableStructure('indexes')">Indexes</button>
-        <button @click="openContextTableStructure('ddl')">Show DDL</button>
-        <button @click="copyQualifiedTableName">Copy Qualified Name</button>
-        <button @click="insertContextSqlTemplate('select')">Generate SELECT</button>
-        <button @click="insertContextSqlTemplate('insert')">Generate INSERT</button>
-        <button @click="insertContextSqlTemplate('update')">Generate UPDATE</button>
-        <button @click="insertContextSqlTemplate('delete')">Generate DELETE</button>
-        <button @click="insertContextDdlTemplate('addColumn')">Add Column SQL</button>
-        <button @click="insertContextDdlTemplate('createIndex')">Create Index SQL</button>
-        <button @click="insertContextDdlTemplate('renameTable')">Rename Table SQL</button>
-        <button class="danger-menu-item" @click="insertContextDdlTemplate('dropTable')">Drop Table SQL</button>
-      </div>
-    </Teleport>
+    <TableContextMenu
+      :open="contextMenu.open"
+      :menu-style="contextMenuStyle"
+      @open-data="openContextTableData"
+      @open-structure="openContextTableStructure"
+      @copy-name="copyQualifiedTableName"
+      @insert-sql="insertContextSqlTemplate"
+      @insert-ddl="insertContextDdlTemplate"
+    />
   </div>
 </template>
 
@@ -1361,8 +1348,7 @@ button:disabled {
   border-color: #3e434a;
 }
 
-.filter-row .danger-inline,
-.context-menu .danger-menu-item {
+.filter-row .danger-inline {
   color: #ffb4aa;
 }
 
@@ -1476,35 +1462,6 @@ button:disabled {
   background: #34373c;
   border: 1px solid #4a4e55;
   border-radius: 8px;
-}
-
-.context-menu {
-  position: fixed;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
-  padding: 5px;
-  color: #c9ccd2;
-  background: #2b2d30;
-  border: 1px solid #4a4e55;
-  border-radius: 6px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
-  overscroll-behavior: contain;
-}
-
-.context-menu button {
-  justify-content: flex-start;
-  width: 100%;
-  min-height: 28px;
-  color: #c9ccd2;
-  text-align: left;
-  border-color: transparent;
-}
-
-.context-menu button:hover {
-  color: #ffffff;
-  background: #373a3f;
 }
 
 .statusbar {
