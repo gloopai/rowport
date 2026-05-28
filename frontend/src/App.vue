@@ -4,10 +4,12 @@ import DatabaseExplorer from './components/DatabaseExplorer.vue'
 import DataTableView from './components/DataTableView.vue'
 import EditorTabs from './components/EditorTabs.vue'
 import MainToolbar from './components/MainToolbar.vue'
+import ServicesPanel from './components/ServicesPanel.vue'
 import SqlEditorToolbar from './components/SqlEditorToolbar.vue'
 import SqlResultPane from './components/SqlResultPane.vue'
 import SqlSidePanel from './components/SqlSidePanel.vue'
 import SqlTextEditor from './components/SqlTextEditor.vue'
+import StructureView from './components/StructureView.vue'
 import {useLayoutResize} from './composables/useLayoutResize'
 import {useQueryHistory} from './composables/useQueryHistory'
 import {useResultTabs} from './composables/useResultTabs'
@@ -85,7 +87,7 @@ const selectedObject = ref({profileId: '', type: 'table', database: '', table: '
 const busy = ref(false)
 const message = ref('')
 const operationLogs = ref([])
-const consoleOutputRef = ref(null)
+const servicesPanelRef = ref(null)
 const logLevelFilter = ref('all')
 const logSearch = ref('')
 const contextMenu = ref({open: false, x: 0, y: 0, database: '', table: ''})
@@ -633,9 +635,7 @@ function addLog(level, text, context = {}) {
   }
   operationLogs.value = [...operationLogs.value.slice(-499), entry]
   nextTick(() => {
-    if (consoleOutputRef.value) {
-      consoleOutputRef.value.scrollTop = consoleOutputRef.value.scrollHeight
-    }
+    servicesPanelRef.value?.scrollToBottom()
   })
 }
 
@@ -2274,38 +2274,17 @@ function demoTableData(page = 1, pageSize = 50) {
           </div>
         </div>
 
-        <div v-else-if="currentTab?.kind === 'structure'" class="data-surface">
-          <div class="filter-row">
-            <span>{{ structureTitle }}</span>
-            <button :disabled="!selectedTable" @click="insertDdlTemplate('addColumn', selectedObject.database, selectedObject.table, selectedObject.profileId)">+ Column</button>
-            <button :disabled="!selectedTable" @click="insertDdlTemplate('createIndex', selectedObject.database, selectedObject.table, selectedObject.profileId)">+ Index</button>
-            <button :disabled="!selectedTable" @click="insertDdlTemplate('renameTable', selectedObject.database, selectedObject.table, selectedObject.profileId)">Rename</button>
-            <button class="danger-inline" :disabled="!selectedTable" @click="insertDdlTemplate('dropTable', selectedObject.database, selectedObject.table, selectedObject.profileId)">Drop</button>
-            <div class="pager">
-              <span>{{ structureRows.length }} items</span>
-            </div>
-          </div>
-
-          <div class="grid-wrap">
-            <pre v-if="currentTab?.objectType === 'ddl'" class="ddl-view">{{ selectedDDL || 'Loading DDL...' }}</pre>
-            <table v-if="currentTab?.objectType !== 'ddl'" class="data-grid">
-              <thead>
-                <tr>
-                  <th class="row-num"></th>
-                  <th v-for="column in structureColumns" :key="column">{{ column }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, rowIndex) in structureRows" :key="rowIndex">
-                  <td class="row-num">{{ rowIndex + 1 }}</td>
-                  <td v-for="(value, cellIndex) in row" :key="cellIndex">{{ value || '<null>' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="floating-count">{{ currentTab?.objectType === 'ddl' ? 'DDL' : `${structureRows.length} items` }}</div>
-        </div>
+        <StructureView
+          v-else-if="currentTab?.kind === 'structure'"
+          :current-tab="currentTab"
+          :selected-table="selectedTable"
+          :selected-object="selectedObject"
+          :structure-title="structureTitle"
+          :structure-columns="structureColumns"
+          :structure-rows="structureRows"
+          :selected-ddl="selectedDDL"
+          @insert-ddl-template="insertDdlTemplate"
+        />
 
         <DataTableView
           v-else-if="currentTab?.kind === 'data'"
@@ -2359,63 +2338,33 @@ function demoTableData(page = 1, pageSize = 50) {
         </div>
       </section>
 
-      <section class="services">
-        <div
-          class="resize-handle horizontal services-resizer"
-          title="Drag to resize Services"
-          @mousedown="beginResize('services', $event)"
-          @dblclick="resetPaneSize('services')"
-        ></div>
-        <header class="services-title">
-          <span>Services</span>
-          <div class="window-actions">
-            <div class="custom-select compact" :class="{open: openSelectId === 'logLevel'}" @click.stop>
-              <button class="custom-select-button" title="Log level" @click="toggleCustomSelect('logLevel')">
-                <span>{{ optionLabel(logLevelOptions, logLevelFilter, 'All') }}</span>
-                <span class="select-caret">⌄</span>
-              </button>
-              <div v-if="openSelectId === 'logLevel'" class="custom-select-menu align-right">
-                <button
-                  v-for="option in logLevelOptions"
-                  :key="option.value"
-                  :class="{active: option.value === logLevelFilter}"
-                  @click="chooseLogLevel(option.value)"
-                >{{ option.label }}</button>
-              </div>
-            </div>
-            <input v-model="logSearch" class="log-search" placeholder="Search logs" data-native-context>
-            <button title="Copy visible logs" :disabled="!visibleLogs.length" @click="copyVisibleLogs">⧉</button>
-            <button title="Export visible logs as CSV" :disabled="!visibleLogs.length" @click="exportVisibleLogsCsv">CSV</button>
-            <button title="Export visible logs as JSON" :disabled="!visibleLogs.length" @click="exportVisibleLogsJson">JSON</button>
-            <button title="Clear logs" @click="clearLogs">⌫</button>
-            <button title="Refresh current table" :disabled="!selectedTable" @click="loadTablePage(tableData.page)">↻</button>
-            <button>×</button>
-          </div>
-        </header>
-        <div class="services-body" :style="{gridTemplateColumns: servicesColumns}">
-          <aside class="services-tree">
-            <div class="tree-row muted-row"><span class="folder-icon">▣</span><span>Database</span></div>
-            <div class="tree-row selected"><span class="mysql-mark">⌁</span><span>{{ selectedProfile?.name || '@localhost' }}</span></div>
-            <div v-if="selectedTable" class="tree-row nested-service"><span class="table-icon">▦</span><span>{{ selectedTable }}</span></div>
-          </aside>
-          <div
-            class="resize-handle vertical services-tree-resizer"
-            title="Drag to resize Services tree"
-            @mousedown="beginResize('servicesTree', $event)"
-            @dblclick="resetPaneSize('servicesTree')"
-          ></div>
-          <div ref="consoleOutputRef" class="console-output">
-            <div v-if="!visibleLogs.length" class="log-empty">Console output</div>
-            <div v-for="log in visibleLogs" :key="log.id" :class="['log-row', `level-${log.level}`]">
-              <span class="log-time">{{ log.time }}</span>
-              <span class="log-level">{{ log.level }}</span>
-              <span class="log-text">{{ log.text }}</span>
-              <span v-if="logContextSummary(log.context)" class="log-context">{{ logContextSummary(log.context) }}</span>
-              <pre v-if="logSql(log.context)" class="log-sql">{{ compactSql(logSql(log.context)) }}</pre>
-            </div>
-          </div>
-        </div>
-      </section>
+      <ServicesPanel
+        ref="servicesPanelRef"
+        v-model:log-search="logSearch"
+        :services-columns="servicesColumns"
+        :open-select-id="openSelectId"
+        :log-level-options="logLevelOptions"
+        :log-level-filter="logLevelFilter"
+        :visible-logs="visibleLogs"
+        :selected-table="selectedTable"
+        :table-page="tableData.page"
+        :selected-profile="selectedProfile"
+        :option-label="optionLabel"
+        :log-context-summary="logContextSummary"
+        :log-sql="logSql"
+        :compact-sql="compactSql"
+        @resize-services="beginResize('services', $event)"
+        @reset-services="resetPaneSize('services')"
+        @toggle-select="toggleCustomSelect"
+        @choose-log-level="chooseLogLevel"
+        @copy-visible-logs="copyVisibleLogs"
+        @export-visible-logs-csv="exportVisibleLogsCsv"
+        @export-visible-logs-json="exportVisibleLogsJson"
+        @clear-logs="clearLogs"
+        @load-table-page="loadTablePage"
+        @resize-services-tree="beginResize('servicesTree', $event)"
+        @reset-services-tree="resetPaneSize('servicesTree')"
+      />
 
       <footer class="statusbar">
         <span>Database</span>
@@ -2826,8 +2775,7 @@ function demoTableData(page = 1, pageSize = 50) {
 
 .ide-shell input,
 .ide-shell textarea,
-.ide-shell .ddl-view,
-.ide-shell .console-output {
+.ide-shell .ddl-view {
   -webkit-user-select: text;
   user-select: text;
 }
@@ -2838,8 +2786,6 @@ function demoTableData(page = 1, pageSize = 50) {
 .ide-shell nav,
 .ide-shell footer,
 .ide-shell .tree-row,
-.ide-shell .services-title,
-.ide-shell .services-tree,
 .ide-shell .statusbar,
 .ide-shell .custom-select,
 .ide-shell .custom-select-menu,
@@ -2851,9 +2797,7 @@ function demoTableData(page = 1, pageSize = 50) {
 .ide-shell input,
 .ide-shell textarea,
 .ide-shell [data-native-context],
-.ide-shell .ddl-view,
-.ide-shell .console-output,
-.ide-shell .console-output * {
+.ide-shell .ddl-view {
   -webkit-user-select: text;
   user-select: text;
 }
@@ -2896,33 +2840,6 @@ function demoTableData(page = 1, pageSize = 50) {
 .explorer-resizer {
   height: 100%;
   background: #151619;
-}
-
-.services-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 37px;
-  padding: 0 8px;
-  color: #e0e2e6;
-  font-weight: 700;
-  border-bottom: 1px solid var(--line);
-}
-
-.services-title .window-actions {
-  min-width: 0;
-}
-
-.services-title .custom-select.compact {
-  max-width: 96px;
-}
-
-.log-search {
-  width: 180px;
-  min-height: 24px;
-  padding: 3px 8px;
-  background: #1f2023;
-  border: 1px solid var(--line);
 }
 
 .window-actions,
@@ -3303,133 +3220,6 @@ button:disabled {
   background: #34373c;
   border: 1px solid #4a4e55;
   border-radius: 8px;
-}
-
-.services {
-  position: relative;
-  display: grid;
-  grid-template-rows: 38px minmax(0, 1fr);
-  min-height: 0;
-  background: var(--panel-darker);
-  border-top: 1px solid var(--line);
-}
-
-.services-resizer {
-  position: absolute;
-  top: -4px;
-  left: 0;
-  right: 0;
-  height: 7px;
-  background: transparent;
-}
-
-.services-resizer:hover,
-.services-resizer:active {
-  background: #4d8df7;
-}
-
-.services-body {
-  display: grid;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.services-tree-resizer {
-  height: 100%;
-  background: var(--line);
-}
-
-.services-tree {
-  min-width: 0;
-  overflow: auto;
-  padding: 8px;
-  background: var(--panel);
-}
-
-.nested-service {
-  margin-left: 24px;
-}
-
-.console-output {
-  min-width: 0;
-  min-height: 0;
-  padding: 12px;
-  overflow: auto;
-  color: #b9bdc5;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.log-empty {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  color: #6f7580;
-}
-
-.log-row {
-  display: grid;
-  grid-template-columns: 72px 58px minmax(180px, 1fr) minmax(160px, 0.8fr);
-  gap: 10px;
-  min-width: 720px;
-  padding: 3px 4px;
-  border-radius: 3px;
-}
-
-.log-row:hover {
-  background: #24282f;
-}
-
-.log-time {
-  color: #777d87;
-}
-
-.log-level {
-  color: #9aa3af;
-  text-transform: uppercase;
-}
-
-.log-text {
-  color: #d0d5dd;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.log-context {
-  color: #7d8490;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.log-sql {
-  grid-column: 3 / 5;
-  margin: -4px 0 4px;
-  padding: 6px 8px;
-  color: #a9d7ff;
-  background: #191b20;
-  border: 1px solid #343942;
-  border-radius: 4px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.level-success .log-level {
-  color: #74c476;
-}
-
-.level-warn .log-level {
-  color: #d6a35f;
-}
-
-.level-error .log-level {
-  color: #ff8f87;
-}
-
-.level-debug .log-level {
-  color: #7f8da3;
 }
 
 .context-menu {
