@@ -158,7 +158,8 @@ const currentTab = computed(() => openTabs.value.find((tab) => tab.id === active
 const shellColumns = computed(() => `${explorerWidth.value}px 6px minmax(0, 1fr)`)
 const mainRows = computed(() => `37px 34px minmax(0, 1fr) ${servicesHeight.value}px 24px`)
 const servicesColumns = computed(() => `${servicesTreeWidth.value}px 6px minmax(0, 1fr)`)
-const queryRows = computed(() => `${queryToolbarHeight.value}px minmax(120px, 1fr) 6px ${queryResultHeight.value}px`)
+const queryRows = computed(() => `${queryToolbarHeight.value}px minmax(0, 1fr)`)
+const queryMainRows = computed(() => `minmax(120px, 1fr) 6px ${queryResultHeight.value}px`)
 const contextMenuStyle = computed(() => ({
   left: `${contextMenu.value.x}px`,
   top: `${contextMenu.value.y}px`,
@@ -2628,59 +2629,16 @@ function demoTableData(page = 1, pageSize = 50) {
                 <span>▶</span>
                 <span>Run</span>
               </button>
-              <button class="toolbar-action danger-action" :disabled="!runningQueryId" title="Cancel running SQL query" @click="cancelRunningQuery">Cancel</button>
-              <button class="toolbar-action" :disabled="busy" title="Run statement at cursor" @click="runQuery('current')">Current</button>
-              <button class="toolbar-action" :disabled="busy" title="Run every SQL statement in the editor" @click="runQuery('all')">All</button>
-              <button class="toolbar-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" @click="explainQuery('smart')">Explain</button>
-              <button class="toolbar-action" title="Open SQL file" @click="openSqlFile">Open</button>
-              <button class="toolbar-action" title="Format SQL" @click="formatQuery">Format</button>
-            </div>
-            <span class="toolbar-divider"></span>
-            <div class="toolbar-group template-group">
-              <span class="toolbar-label">Generate</span>
-              <button class="template-action" :disabled="!selectedTable" title="Generate SELECT template" @click="insertSqlTemplate('select')">SELECT</button>
-              <button class="template-action" :disabled="!selectedTable" title="Generate INSERT template" @click="insertSqlTemplate('insert')">INSERT</button>
-              <button class="template-action" :disabled="!selectedTable" title="Generate UPDATE template" @click="insertSqlTemplate('update')">UPDATE</button>
-              <button class="template-action" :disabled="!selectedTable" title="Generate DELETE template" @click="insertSqlTemplate('delete')">DELETE</button>
+              <button class="toolbar-action icon-action danger-action" :disabled="!runningQueryId" title="Cancel running SQL query" aria-label="Cancel running SQL query" @click="cancelRunningQuery">■</button>
+              <button class="toolbar-action icon-action" :disabled="busy" title="Run statement at cursor" aria-label="Run current statement" @click="runQuery('current')">⊙</button>
+              <button class="toolbar-action icon-action" :disabled="busy" title="Run every SQL statement in the editor" aria-label="Run all statements" @click="runQuery('all')">⇉</button>
+              <button class="toolbar-action icon-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" aria-label="Explain SQL" @click="explainQuery('smart')">?</button>
             </div>
             <div class="toolbar-fill"></div>
-            <div class="toolbar-group history-group">
-              <span class="toolbar-label">History</span>
-              <button
-                class="toolbar-action favorite-action"
-                :class="{saved: savedHistoryItem?.favorite}"
-                :title="savedHistoryItem?.favorite ? '取消收藏 SQL' : '收藏当前 SQL'"
-                @click="toggleSavedHistory"
-              >
-                {{ savedHistoryItem?.favorite ? '★' : '☆' }}
-              </button>
-              <div class="custom-select wide" :class="{open: openSelectId === 'history', disabled: !queryHistory.length}" @click.stop>
-                <button class="custom-select-button" :disabled="!queryHistory.length" @click="toggleCustomSelect('history')">
-                  <span>{{ optionLabel(historyOptions, selectedHistoryId, 'Recent SQL') }}</span>
-                  <span class="select-caret">⌄</span>
-                </button>
-                <div v-if="openSelectId === 'history'" class="custom-select-menu">
-                  <input
-                    v-model="historySearch"
-                    class="history-search"
-                    placeholder="Search history"
-                    data-native-context
-                    @click.stop
-                    @keydown.stop
-                  >
-                  <div v-if="historyOptions.length <= 1" class="select-empty">{{ historySearch ? 'No matching history' : 'No history yet' }}</div>
-                  <button
-                    v-for="option in historyOptions"
-                    v-show="option.value"
-                    :key="option.value || 'empty'"
-                    :class="{active: option.value === selectedHistoryId}"
-                    @click="chooseHistory(option.value)"
-                  >{{ option.label }}</button>
-                </div>
-              </div>
-            </div>
             <span class="shortcut-hint">Cmd/Ctrl+Enter current · Shift+Cmd/Ctrl+Enter all</span>
           </div>
+          <div class="query-workspace">
+            <div class="query-main-stack" :style="{gridTemplateRows: queryMainRows}">
           <div class="sql-surface">
             <div class="line-gutter">
               <span v-for="line in 24" :key="line">{{ line }}</span>
@@ -2749,6 +2707,55 @@ function demoTableData(page = 1, pageSize = 50) {
               </table>
               <div v-else class="empty-state">Run SQL to view results.</div>
             </div>
+          </div>
+            </div>
+            <aside class="query-side-panel">
+              <section class="tool-panel-section">
+                <div class="tool-panel-title">File</div>
+                <button class="tool-panel-button" title="Open SQL file" @click="openSqlFile">Open SQL</button>
+                <button class="tool-panel-button" title="Format SQL" @click="formatQuery">Format</button>
+              </section>
+              <section class="tool-panel-section">
+                <div class="tool-panel-title">Generate</div>
+                <div class="tool-panel-grid">
+                  <button :disabled="!selectedTable" @click="insertSqlTemplate('select')">SELECT</button>
+                  <button :disabled="!selectedTable" @click="insertSqlTemplate('insert')">INSERT</button>
+                  <button :disabled="!selectedTable" @click="insertSqlTemplate('update')">UPDATE</button>
+                  <button :disabled="!selectedTable" @click="insertSqlTemplate('delete')">DELETE</button>
+                </div>
+              </section>
+              <section class="tool-panel-section history-panel-section">
+                <div class="tool-panel-title history-menu-title">
+                  <span>History</span>
+                  <button
+                    class="favorite-action"
+                    :class="{saved: savedHistoryItem?.favorite}"
+                    :title="savedHistoryItem?.favorite ? '取消收藏 SQL' : '收藏当前 SQL'"
+                    @click.stop="toggleSavedHistory"
+                  >
+                    {{ savedHistoryItem?.favorite ? '★' : '☆' }}
+                  </button>
+                </div>
+                <input
+                  v-model="historySearch"
+                  class="history-search"
+                  placeholder="Search history"
+                  data-native-context
+                  @click.stop
+                  @keydown.stop
+                >
+                <div class="history-panel-list">
+                  <div v-if="historyOptions.length <= 1" class="select-empty">{{ historySearch ? 'No matching history' : 'No history yet' }}</div>
+                  <button
+                    v-for="option in historyOptions"
+                    v-show="option.value"
+                    :key="option.value || 'empty'"
+                    :class="{active: option.value === selectedHistoryId}"
+                    @click="chooseHistory(option.value)"
+                  >{{ option.label }}</button>
+                </div>
+              </section>
+            </aside>
           </div>
         </div>
 
@@ -4117,14 +4124,34 @@ button:disabled {
   font-size: 11px;
 }
 
-.history-group {
-  flex: 0 1 280px;
-  max-width: min(320px, 36vw);
+.icon-action {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
 }
 
-.history-group .custom-select {
-  min-width: 160px;
-  max-width: 260px;
+.query-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 268px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.query-main-stack {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.query-side-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #24262a;
+  border-left: 1px solid var(--line);
 }
 
 .history-search {
@@ -4139,8 +4166,79 @@ button:disabled {
   border-radius: 4px;
 }
 
+.tool-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.tool-panel-section:first-child {
+  border-top: 0;
+}
+
+.tool-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  padding: 0 4px;
+  color: #7f8794;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.tool-panel-button,
+.tool-panel-grid button,
+.history-panel-list button {
+  display: block;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 8px;
+  color: #cbd1db;
+  text-align: left;
+  background: #2b2e34;
+  border-color: #3a3e45;
+}
+
+.tool-panel-button:hover:not(:disabled),
+.tool-panel-grid button:hover:not(:disabled),
+.history-panel-list button:hover:not(:disabled) {
+  color: #ffffff;
+  background: #343840;
+}
+
+.history-panel-list button.active {
+  color: #ffffff;
+  background: #41506a;
+}
+
+.tool-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.history-panel-section {
+  flex: 1;
+  min-height: 0;
+}
+
+.history-panel-list {
+  min-height: 0;
+  overflow: auto;
+}
+
+.history-menu-title {
+  padding-right: 0;
+}
+
 .favorite-action {
   width: 28px;
+  min-width: 28px;
+  min-height: 24px;
   padding: 0;
   color: #aeb6c2;
   background: transparent;
@@ -4188,10 +4286,6 @@ button:disabled {
   .template-action {
     padding: 0 7px;
   }
-
-  .history-group {
-    max-width: 240px;
-  }
 }
 
 @media (max-width: 1040px) {
@@ -4207,17 +4301,12 @@ button:disabled {
     display: none;
   }
 
-  .template-action {
-    padding: 0 6px;
+  .query-workspace {
+    grid-template-columns: minmax(0, 1fr) 220px;
   }
 
-  .history-group {
-    flex-basis: 210px;
-    max-width: 220px;
-  }
-
-  .history-group .custom-select {
-    min-width: 146px;
+  .query-side-panel {
+    font-size: 12px;
   }
 }
 
