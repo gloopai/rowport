@@ -232,8 +232,6 @@ const historyOptions = computed(() => [
   {label: 'Recent SQL', value: ''},
   ...queryHistory.value.map((item, index) => ({label: item.slice(0, 90), value: String(index)}))
 ])
-const querySelectionText = computed(() => query.value.slice(querySelection.value.start, querySelection.value.end).trim())
-const hasQuerySelection = computed(() => Boolean(querySelectionText.value))
 const orderByOptions = computed(() => [
   {label: 'none', value: ''},
   ...tableData.value.columns.map((column) => ({label: column.name, value: column.name}))
@@ -2458,7 +2456,7 @@ function demoTableData(page = 1, pageSize = 50) {
               <span class="toolbar-label">Execute</span>
               <button class="toolbar-action primary-action" :disabled="busy" title="Run selected SQL, otherwise the statement at cursor" @click="runQuery('smart')">
                 <span>▶</span>
-                <span>{{ hasQuerySelection ? 'Run Selection' : 'Run Current' }}</span>
+                <span>Run</span>
               </button>
               <button class="toolbar-action danger-action" :disabled="!runningQueryId" title="Cancel running SQL query" @click="cancelRunningQuery">Cancel</button>
               <button class="toolbar-action" :disabled="busy" title="Run statement at cursor" @click="runQuery('current')">Current</button>
