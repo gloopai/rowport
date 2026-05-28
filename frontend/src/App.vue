@@ -2624,8 +2624,13 @@ function demoTableData(page = 1, pageSize = 50) {
             <div class="toolbar-group history-group">
               <span class="toolbar-label">History</span>
               <input v-model="historySearch" class="history-search" placeholder="Search" data-native-context>
-              <button class="toolbar-action save-history-action" :title="savedHistoryItem?.favorite ? 'Remove saved SQL' : 'Save current SQL'" @click="toggleSavedHistory">
-                {{ savedHistoryItem?.favorite ? 'Saved' : 'Save' }}
+              <button
+                class="toolbar-action favorite-action"
+                :class="{saved: savedHistoryItem?.favorite}"
+                :title="savedHistoryItem?.favorite ? '取消收藏 SQL' : '收藏当前 SQL'"
+                @click="toggleSavedHistory"
+              >
+                {{ savedHistoryItem?.favorite ? '★' : '☆' }}
               </button>
               <div class="custom-select wide" :class="{open: openSelectId === 'history', disabled: historyOptions.length <= 1}" @click.stop>
                 <button class="custom-select-button" :disabled="historyOptions.length <= 1" @click="toggleCustomSelect('history')">
@@ -4089,12 +4094,28 @@ button:disabled {
   border-radius: 4px;
 }
 
-.save-history-action {
-  min-width: 52px;
-  padding: 0 9px;
-  color: #d9f2dd;
-  background: rgba(77, 179, 99, 0.12);
-  border-color: rgba(77, 179, 99, 0.3);
+.favorite-action {
+  width: 28px;
+  padding: 0;
+  color: #aeb6c2;
+  background: transparent;
+  border-color: #3a3e45;
+  font-size: 14px;
+}
+
+.favorite-action:hover:not(:disabled) {
+  color: #ffffff;
+  background: #343840;
+}
+
+.favorite-action.saved {
+  color: #ffd66e;
+  background: rgba(214, 163, 95, 0.16);
+  border-color: rgba(214, 163, 95, 0.52);
+}
+
+.favorite-action.saved:hover:not(:disabled) {
+  background: rgba(214, 163, 95, 0.24);
 }
 
 .shortcut-hint {
