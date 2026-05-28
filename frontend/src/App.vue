@@ -136,6 +136,8 @@ let columnResizeState = null
 const VIRTUAL_ROW_HEIGHT = 27
 const VIRTUAL_VISIBLE_ROWS = 80
 const VIRTUAL_OVERSCAN = 12
+const CONTEXT_MENU_WIDTH = 220
+const CONTEXT_MENU_MAX_HEIGHT = 420
 
 const selectedProfile = computed(() => profiles.value.find((item) => item.id === selectedProfileId.value))
 const activeProfileId = computed(() => currentTab.value?.profileId || selectedProfileId.value || connectedProfileId.value)
@@ -153,6 +155,12 @@ const shellColumns = computed(() => `${explorerWidth.value}px 6px minmax(0, 1fr)
 const mainRows = computed(() => `37px 34px minmax(0, 1fr) ${servicesHeight.value}px 24px`)
 const servicesColumns = computed(() => `${servicesTreeWidth.value}px 6px minmax(0, 1fr)`)
 const queryRows = computed(() => `40px minmax(120px, 1fr) 6px ${queryResultHeight.value}px`)
+const contextMenuStyle = computed(() => ({
+  left: `${contextMenu.value.x}px`,
+  top: `${contextMenu.value.y}px`,
+  width: `${CONTEXT_MENU_WIDTH}px`,
+  maxHeight: `${Math.max(160, Math.min(CONTEXT_MENU_MAX_HEIGHT, window.innerHeight - 16))}px`
+}))
 const selectedMetadata = computed(() => tableMetadata.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || {columns: [], indexes: []})
 const activeResultTab = computed(() => resultTabs.value.find((tab) => tab.id === activeResultTabId.value) || null)
 const activeResultRows = computed(() => activeResultTab.value?.rows || [])
@@ -752,7 +760,14 @@ function deleteRowLogSql(database, table, keyValues) {
 }
 
 function openTableContextMenu(profileId, database, table, event) {
-  contextMenu.value = {open: true, x: event.clientX, y: event.clientY, profileId, database, table}
+  const viewportWidth = window.innerWidth || 0
+  const viewportHeight = window.innerHeight || 0
+  const menuHeight = Math.min(CONTEXT_MENU_MAX_HEIGHT, viewportHeight - 16)
+  let x = event.clientX
+  let y = event.clientY
+  if (x + CONTEXT_MENU_WIDTH + 8 > viewportWidth) x = Math.max(8, event.clientX - CONTEXT_MENU_WIDTH)
+  if (y + menuHeight + 8 > viewportHeight) y = Math.max(8, viewportHeight - menuHeight - 8)
+  contextMenu.value = {open: true, x, y, profileId, database, table}
   addLog('debug', 'Open table context menu', logContext({profileId, database, table}))
 }
 
@@ -3058,26 +3073,29 @@ function demoTableData(page = 1, pageSize = 50) {
       </section>
     </div>
 
-    <div
-      v-if="contextMenu.open"
-      class="context-menu"
-      :style="{left: `${contextMenu.x}px`, top: `${contextMenu.y}px`}"
-      @click.stop
-    >
-      <button @click="openContextTableData">Open Data</button>
-      <button @click="openContextTableStructure('columns')">Columns</button>
-      <button @click="openContextTableStructure('indexes')">Indexes</button>
-      <button @click="openContextTableStructure('ddl')">Show DDL</button>
-      <button @click="copyQualifiedTableName">Copy Qualified Name</button>
-      <button @click="insertContextSqlTemplate('select')">Generate SELECT</button>
-      <button @click="insertContextSqlTemplate('insert')">Generate INSERT</button>
-      <button @click="insertContextSqlTemplate('update')">Generate UPDATE</button>
-      <button @click="insertContextSqlTemplate('delete')">Generate DELETE</button>
-      <button @click="insertContextDdlTemplate('addColumn')">Add Column SQL</button>
-      <button @click="insertContextDdlTemplate('createIndex')">Create Index SQL</button>
-      <button @click="insertContextDdlTemplate('renameTable')">Rename Table SQL</button>
-      <button class="danger-menu-item" @click="insertContextDdlTemplate('dropTable')">Drop Table SQL</button>
-    </div>
+    <Teleport to="body">
+      <div
+        v-if="contextMenu.open"
+        class="context-menu"
+        :style="contextMenuStyle"
+        @click.stop
+        @contextmenu.prevent.stop
+      >
+        <button @click="openContextTableData">Open Data</button>
+        <button @click="openContextTableStructure('columns')">Columns</button>
+        <button @click="openContextTableStructure('indexes')">Indexes</button>
+        <button @click="openContextTableStructure('ddl')">Show DDL</button>
+        <button @click="copyQualifiedTableName">Copy Qualified Name</button>
+        <button @click="insertContextSqlTemplate('select')">Generate SELECT</button>
+        <button @click="insertContextSqlTemplate('insert')">Generate INSERT</button>
+        <button @click="insertContextSqlTemplate('update')">Generate UPDATE</button>
+        <button @click="insertContextSqlTemplate('delete')">Generate DELETE</button>
+        <button @click="insertContextDdlTemplate('addColumn')">Add Column SQL</button>
+        <button @click="insertContextDdlTemplate('createIndex')">Create Index SQL</button>
+        <button @click="insertContextDdlTemplate('renameTable')">Rename Table SQL</button>
+        <button class="danger-menu-item" @click="insertContextDdlTemplate('dropTable')">Drop Table SQL</button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -4323,21 +4341,31 @@ button:disabled {
 
 .context-menu {
   position: fixed;
-  z-index: 20;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
-  min-width: 190px;
+  overflow: auto;
   padding: 5px;
+  color: #c9ccd2;
   background: #2b2d30;
   border: 1px solid #4a4e55;
   border-radius: 6px;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  overscroll-behavior: contain;
 }
 
 .context-menu button {
   justify-content: flex-start;
   width: 100%;
+  min-height: 28px;
+  color: #c9ccd2;
   text-align: left;
+  border-color: transparent;
+}
+
+.context-menu button:hover {
+  color: #ffffff;
+  background: #373a3f;
 }
 
 .statusbar {
