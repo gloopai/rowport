@@ -1,0 +1,3 @@
+#!/bin/sh
+export CGO_LDFLAGS="${CGO_LDFLAGS} -framework UniformTypeIdentifiers"
+exec go "$@"
