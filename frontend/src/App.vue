@@ -13,6 +13,7 @@ import SqlTextEditor from './components/SqlTextEditor.vue'
 import StructureView from './components/StructureView.vue'
 import {useConnections} from './composables/useConnections'
 import {useLayoutResize} from './composables/useLayoutResize'
+import {logLevelOptions, useOperationLogs} from './composables/useOperationLogs'
 import {useSchemaExplorer} from './composables/useSchemaExplorer'
 import {compactSql} from './composables/sqlUtils'
 import {useSqlConsole} from './composables/useSqlConsole'
@@ -30,10 +31,6 @@ const activeTabId = ref('console')
 const selectedObject = ref({profileId: '', type: 'table', database: '', table: ''})
 const busy = ref(false)
 const message = ref('')
-const operationLogs = ref([])
-const servicesPanelRef = ref(null)
-const logLevelFilter = ref('all')
-const logSearch = ref('')
 const contextMenu = ref({open: false, x: 0, y: 0, database: '', table: ''})
 const openSelectId = ref('')
 
@@ -50,6 +47,26 @@ const CONTEXT_MENU_WIDTH = 220
 const CONTEXT_MENU_MAX_HEIGHT = 420
 
 const currentTab = computed(() => openTabs.value.find((tab) => tab.id === activeTabId.value))
+const {
+  servicesPanelRef,
+  logLevelFilter,
+  logSearch,
+  latestLog,
+  visibleLogs,
+  addLog,
+  clearLogs,
+  copyVisibleLogs,
+  exportVisibleLogsJson,
+  exportVisibleLogsCsv,
+  logContextSummary,
+  logSql
+} = useOperationLogs({
+  copyText,
+  downloadText,
+  formatLogTime,
+  logContext,
+  newId
+})
 const {
   dataTableViewRef,
   dataGridScrollTop,
@@ -324,7 +341,6 @@ const {
   virtualRows,
   rowHeight: VIRTUAL_ROW_HEIGHT
 })
-const latestLog = computed(() => operationLogs.value[operationLogs.value.length - 1])
 const databaseOptions = computed(() => [
   {label: 'Database', value: ''},
   ...activeConnection.value.databases.map((database) => ({label: database.name, value: database.name}))
@@ -352,23 +368,6 @@ const filterOperatorOptions = [
   {label: 'IS NOT NULL', value: 'IS NOT NULL'},
   {label: 'BETWEEN', value: 'BETWEEN'}
 ]
-const logLevelOptions = [
-  {label: 'All', value: 'all'},
-  {label: 'Info', value: 'info'},
-  {label: 'Success', value: 'success'},
-  {label: 'Warn', value: 'warn'},
-  {label: 'Error', value: 'error'},
-  {label: 'Debug', value: 'debug'}
-]
-const visibleLogs = computed(() => {
-  const query = logSearch.value.trim().toLowerCase()
-  return operationLogs.value.filter((log) => {
-    if (logLevelFilter.value !== 'all' && log.level !== logLevelFilter.value) return false
-    if (!query) return true
-    return `${log.time} ${log.level} ${log.text} ${logContextSummary(log.context)} ${logSql(log.context)}`.toLowerCase().includes(query)
-  })
-})
-
 onMounted(async () => {
   loadLayout()
   window.addEventListener('contextmenu', preventNativeContextMenu)
@@ -474,75 +473,6 @@ function resetGridScroll(kind) {
       dataTableViewRef.value?.scrollToTop()
     })
   }
-}
-
-function addLog(level, text, context = {}) {
-  const entry = {
-    id: newId(),
-    level,
-    text,
-    time: formatLogTime(new Date()),
-    context
-  }
-  operationLogs.value = [...operationLogs.value.slice(-499), entry]
-  nextTick(() => {
-    servicesPanelRef.value?.scrollToBottom()
-  })
-}
-
-function clearLogs() {
-  operationLogs.value = []
-  addLog('info', 'Operation log cleared')
-}
-
-function copyVisibleLogs() {
-  const lines = visibleLogs.value.map((log) => {
-    const summary = logContextSummary(log.context)
-    const sql = logSql(log.context)
-    return [
-      `[${log.time}] ${log.level.toUpperCase()} ${log.text} ${summary}`.trim(),
-      sql ? `SQL: ${sql}` : ''
-    ].filter(Boolean).join('\n')
-  })
-  copyText(lines.join('\n'), '操作日志')
-}
-
-function exportVisibleLogsJson() {
-  if (!visibleLogs.value.length) return
-  downloadText(`mysql-gui-logs-${Date.now()}.json`, JSON.stringify(visibleLogs.value, null, 2), 'application/json;charset=utf-8')
-  addLog('success', 'Export visible logs JSON', logContext({rows: visibleLogs.value.length}))
-}
-
-function exportVisibleLogsCsv() {
-  if (!visibleLogs.value.length) return
-  const headers = ['time', 'level', 'text', 'context']
-  const lines = [
-    headers.join(','),
-    ...visibleLogs.value.map((log) => [
-      csvValue(log.time),
-      csvValue(log.level),
-      csvValue(log.text),
-      csvValue(logContextSummary(log.context))
-    ].join(','))
-  ]
-  downloadText(`mysql-gui-logs-${Date.now()}.csv`, lines.join('\n'), 'text/csv;charset=utf-8')
-  addLog('success', 'Export visible logs CSV', logContext({rows: visibleLogs.value.length}))
-}
-
-function csvValue(value) {
-  const text = String(value ?? '')
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
-}
-
-function logContextSummary(context) {
-  return Object.entries(context || {})
-    .filter(([key, value]) => key !== 'sql' && value !== undefined && value !== null && value !== '')
-    .map(([key, value]) => `${key}=${value}`)
-    .join('  ')
-}
-
-function logSql(context) {
-  return String(context?.sql || '').trim()
 }
 
 function openTableContextMenu(profileId, database, table, event) {
