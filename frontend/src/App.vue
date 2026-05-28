@@ -246,10 +246,8 @@ const filteredQueryHistory = computed(() => {
     .sort((a, b) => Number(b.favorite) - Number(a.favorite) || Number(b.sameContext) - Number(a.sameContext) || String(b.executedAt).localeCompare(String(a.executedAt)))
     .slice(0, 60)
 })
-const historyOptions = computed(() => [
-  {label: 'Recent SQL', value: ''},
-  ...filteredQueryHistory.value.map((item) => ({label: historyOptionLabel(item), value: item.id}))
-])
+const savedQueryHistory = computed(() => filteredQueryHistory.value.filter((item) => item.favorite).slice(0, 30))
+const recentQueryHistory = computed(() => filteredQueryHistory.value.filter((item) => !item.favorite).slice(0, 60))
 const selectedHistoryItem = computed(() => queryHistory.value.find((item) => item.id === selectedHistoryId.value) || null)
 const currentHistoryItem = computed(() => {
   const normalizedSql = normalizeResultSql(currentSqlText() || query.value)
@@ -1653,6 +1651,13 @@ function toggleSavedHistory(item = savedHistoryItem.value) {
   persistQueryHistory()
 }
 
+function clearRecentHistory() {
+  queryHistory.value = queryHistory.value.filter((item) => item.favorite)
+  selectedHistoryId.value = ''
+  persistQueryHistory()
+  addLog('info', 'Clear recent SQL history', logContext({saved: queryHistory.value.length}))
+}
+
 function isDangerousSql(sql) {
   const normalized = sql
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
@@ -2629,10 +2634,11 @@ function demoTableData(page = 1, pageSize = 50) {
                 <span>▶</span>
                 <span>Run</span>
               </button>
-              <button class="toolbar-action icon-action danger-action" :disabled="!runningQueryId" title="Cancel running SQL query" aria-label="Cancel running SQL query" @click="cancelRunningQuery">■</button>
-              <button class="toolbar-action icon-action" :disabled="busy" title="Run statement at cursor" aria-label="Run current statement" @click="runQuery('current')">⊙</button>
-              <button class="toolbar-action icon-action" :disabled="busy" title="Run every SQL statement in the editor" aria-label="Run all statements" @click="runQuery('all')">⇉</button>
-              <button class="toolbar-action icon-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" aria-label="Explain SQL" @click="explainQuery('smart')">?</button>
+              <button class="toolbar-action danger-action" :disabled="!runningQueryId" title="Cancel running SQL query" @click="cancelRunningQuery">■ Stop</button>
+              <button class="toolbar-action" :disabled="busy" title="Run statement at cursor" @click="runQuery('current')">Current</button>
+              <button class="toolbar-action" :disabled="busy" title="Run every SQL statement in the editor" @click="runQuery('all')">All</button>
+              <button class="toolbar-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" @click="explainQuery('smart')">Explain</button>
+              <button class="toolbar-action" title="Open SQL file" @click="openSqlFile">▣ Open</button>
             </div>
             <div class="toolbar-fill"></div>
             <span class="shortcut-hint">Cmd/Ctrl+Enter current · Shift+Cmd/Ctrl+Enter all</span>
@@ -2711,8 +2717,7 @@ function demoTableData(page = 1, pageSize = 50) {
             </div>
             <aside class="query-side-panel">
               <section class="tool-panel-section">
-                <div class="tool-panel-title">File</div>
-                <button class="tool-panel-button" title="Open SQL file" @click="openSqlFile">Open SQL</button>
+                <div class="tool-panel-title">Tools</div>
                 <button class="tool-panel-button" title="Format SQL" @click="formatQuery">Format</button>
               </section>
               <section class="tool-panel-section">
@@ -2724,9 +2729,9 @@ function demoTableData(page = 1, pageSize = 50) {
                   <button :disabled="!selectedTable" @click="insertSqlTemplate('delete')">DELETE</button>
                 </div>
               </section>
-              <section class="tool-panel-section history-panel-section">
+              <section class="tool-panel-section saved-panel-section">
                 <div class="tool-panel-title history-menu-title">
-                  <span>History</span>
+                  <span>Saved SQL</span>
                   <button
                     class="favorite-action"
                     :class="{saved: savedHistoryItem?.favorite}"
@@ -2735,6 +2740,21 @@ function demoTableData(page = 1, pageSize = 50) {
                   >
                     {{ savedHistoryItem?.favorite ? '★' : '☆' }}
                   </button>
+                </div>
+                <div class="history-panel-list saved-history-list">
+                  <div v-if="!savedQueryHistory.length" class="select-empty">No saved SQL</div>
+                  <button
+                    v-for="item in savedQueryHistory"
+                    :key="item.id"
+                    :class="{active: item.id === selectedHistoryId}"
+                    @click="chooseHistory(item.id)"
+                  >{{ historyOptionLabel(item) }}</button>
+                </div>
+              </section>
+              <section class="tool-panel-section history-panel-section">
+                <div class="tool-panel-title history-menu-title">
+                  <span>Recent History</span>
+                  <button class="panel-link-button" :disabled="!recentQueryHistory.length" @click="clearRecentHistory">Clear</button>
                 </div>
                 <input
                   v-model="historySearch"
@@ -2745,14 +2765,13 @@ function demoTableData(page = 1, pageSize = 50) {
                   @keydown.stop
                 >
                 <div class="history-panel-list">
-                  <div v-if="historyOptions.length <= 1" class="select-empty">{{ historySearch ? 'No matching history' : 'No history yet' }}</div>
+                  <div v-if="!recentQueryHistory.length" class="select-empty">{{ historySearch ? 'No matching history' : 'No recent history' }}</div>
                   <button
-                    v-for="option in historyOptions"
-                    v-show="option.value"
-                    :key="option.value || 'empty'"
-                    :class="{active: option.value === selectedHistoryId}"
-                    @click="chooseHistory(option.value)"
-                  >{{ option.label }}</button>
+                    v-for="item in recentQueryHistory"
+                    :key="item.id"
+                    :class="{active: item.id === selectedHistoryId}"
+                    @click="chooseHistory(item.id)"
+                  >{{ historyOptionLabel(item) }}</button>
                 </div>
               </section>
             </aside>
@@ -4124,12 +4143,6 @@ button:disabled {
   font-size: 11px;
 }
 
-.icon-action {
-  width: 28px;
-  min-width: 28px;
-  padding: 0;
-}
-
 .query-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 268px;
@@ -4226,9 +4239,18 @@ button:disabled {
   min-height: 0;
 }
 
+.saved-panel-section {
+  max-height: 34%;
+  min-height: 96px;
+}
+
 .history-panel-list {
   min-height: 0;
   overflow: auto;
+}
+
+.saved-history-list {
+  max-height: 160px;
 }
 
 .history-menu-title {
@@ -4259,6 +4281,21 @@ button:disabled {
 
 .favorite-action.saved:hover:not(:disabled) {
   background: rgba(214, 163, 95, 0.24);
+}
+
+.panel-link-button {
+  min-height: 22px;
+  padding: 0 6px;
+  color: #9fb8e8;
+  font-size: 11px;
+  text-transform: none;
+  background: transparent;
+  border-color: transparent;
+}
+
+.panel-link-button:hover:not(:disabled) {
+  color: #ffffff;
+  background: #343840;
 }
 
 .shortcut-hint {
