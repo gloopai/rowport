@@ -346,6 +346,37 @@ async function main() {
     if (overflow > 2) throw new Error(`${name} horizontal overflow: ${overflow}px`)
   }
 
+  async function assertExplorerTreeStyle() {
+    const treeStyle = await evalJs(`(() => {
+      const explorer = document.querySelector('.explorer')
+      const row = document.querySelector('.explorer .tree-row')
+      const table = document.querySelector('.explorer .table-node')
+      if (!explorer || !row || !table) return null
+      const style = getComputedStyle(row)
+      const rect = row.getBoundingClientRect()
+      const explorerRect = explorer.getBoundingClientRect()
+      return {
+        appearance: style.appearance,
+        background: style.backgroundColor,
+        borderRadius: style.borderRadius,
+        display: style.display,
+        rowWidth: rect.width,
+        explorerWidth: explorerRect.width,
+        tableDisplay: getComputedStyle(table).display
+      }
+    })()`)
+    if (!treeStyle) throw new Error('explorer tree style target missing')
+    if (treeStyle.display !== 'flex' || treeStyle.tableDisplay !== 'flex') {
+      throw new Error(`explorer tree rows lost flex layout: ${JSON.stringify(treeStyle)}`)
+    }
+    if (treeStyle.background === 'rgb(255, 255, 255)' || treeStyle.rowWidth < treeStyle.explorerWidth * 0.75) {
+      throw new Error(`explorer tree rows look like native buttons: ${JSON.stringify(treeStyle)}`)
+    }
+    if (!treeStyle.borderRadius || treeStyle.borderRadius === '0px') {
+      throw new Error(`explorer tree rows lost rounded selection style: ${JSON.stringify(treeStyle)}`)
+    }
+  }
+
   await step('initial shell', async () => {
     await assertVisible('app shell', '.ide-shell')
     await assertVisible('explorer', '.explorer')
@@ -408,6 +439,7 @@ async function main() {
     if (initiallyOpenTables !== 0) throw new Error(`tables expanded before clicking tables folder: ${initiallyOpenTables}`)
     await click('expand tables folder', `const el = [...document.querySelectorAll('.muted-row')].find((node) => node.textContent.includes('tables')); if (!el) throw new Error('tables folder missing'); el.click()`)
     await assertText('table node', '.table-node', 'users')
+    await assertExplorerTreeStyle()
     await screenshot('08-connected-data-tree')
   })
 
