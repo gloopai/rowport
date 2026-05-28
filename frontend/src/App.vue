@@ -90,6 +90,7 @@ const testConnectionState = ref({status: 'idle', message: ''})
 
 const query = ref('SELECT 1;')
 const queryEditorRef = ref(null)
+const queryToolbarRef = ref(null)
 const querySelection = ref({start: 0, end: 0})
 const queryHistory = ref([])
 const selectedHistoryId = ref('')
@@ -131,9 +132,11 @@ const tableDDLs = ref({})
 const explorerWidth = ref(360)
 const servicesHeight = ref(240)
 const servicesTreeWidth = ref(240)
+const queryToolbarHeight = ref(40)
 const queryResultHeight = ref(240)
 let resizeState = null
 let columnResizeState = null
+let queryToolbarObserver = null
 const VIRTUAL_ROW_HEIGHT = 27
 const VIRTUAL_VISIBLE_ROWS = 80
 const VIRTUAL_OVERSCAN = 12
@@ -155,7 +158,7 @@ const currentTab = computed(() => openTabs.value.find((tab) => tab.id === active
 const shellColumns = computed(() => `${explorerWidth.value}px 6px minmax(0, 1fr)`)
 const mainRows = computed(() => `37px 34px minmax(0, 1fr) ${servicesHeight.value}px 24px`)
 const servicesColumns = computed(() => `${servicesTreeWidth.value}px 6px minmax(0, 1fr)`)
-const queryRows = computed(() => `auto minmax(120px, 1fr) 6px ${queryResultHeight.value}px`)
+const queryRows = computed(() => `${queryToolbarHeight.value}px minmax(120px, 1fr) 6px ${queryResultHeight.value}px`)
 const contextMenuStyle = computed(() => ({
   left: `${contextMenu.value.x}px`,
   top: `${contextMenu.value.y}px`,
@@ -300,6 +303,7 @@ onMounted(async () => {
   loadLayout()
   window.addEventListener('contextmenu', preventNativeContextMenu)
   window.addEventListener('selectstart', preventChromeTextSelection)
+  window.addEventListener('resize', syncQueryToolbarHeight)
   queryHistory.value = loadQueryHistory()
   profiles.value = loadProfiles()
   if (profiles.value.length === 0) {
@@ -313,13 +317,32 @@ onMounted(async () => {
   if (hasRuntime()) {
     status.value = await Status()
   }
+  await nextTick()
+  observeQueryToolbar()
   addLog('info', 'Application ready', logContext({elapsedMs: elapsedSince(appStartedAt), profiles: profiles.value.length}))
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('contextmenu', preventNativeContextMenu)
   window.removeEventListener('selectstart', preventChromeTextSelection)
+  window.removeEventListener('resize', syncQueryToolbarHeight)
+  queryToolbarObserver?.disconnect()
 })
+
+function observeQueryToolbar() {
+  syncQueryToolbarHeight()
+  queryToolbarObserver?.disconnect()
+  if (!queryToolbarRef.value || typeof ResizeObserver === 'undefined') return
+  queryToolbarObserver = new ResizeObserver(syncQueryToolbarHeight)
+  queryToolbarObserver.observe(queryToolbarRef.value)
+}
+
+function syncQueryToolbarHeight() {
+  nextTick(() => {
+    const height = queryToolbarRef.value?.getBoundingClientRect?.().height || 40
+    queryToolbarHeight.value = Math.max(40, Math.ceil(height))
+  })
+}
 
 function loadLayout() {
   try {
@@ -2590,7 +2613,7 @@ function demoTableData(page = 1, pageSize = 50) {
 
       <section class="editor-area">
         <div v-if="currentTab?.kind === 'query'" class="query-surface" :style="{gridTemplateRows: queryRows}">
-          <div class="query-toolbar">
+          <div ref="queryToolbarRef" class="query-toolbar">
             <div class="query-toolbar-title">
               <span class="query-title-icon">⌁</span>
               <div>
