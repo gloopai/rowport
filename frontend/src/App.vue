@@ -2,12 +2,13 @@
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {
   BulkInsertRows,
+  CancelQuery,
   ChoosePrivateKeyPath,
   Connect,
   DeleteCredentials,
   DeleteTableRow,
   DisconnectProfile,
-  Execute,
+  ExecuteWithID,
   GetTableData,
   InsertTableRow,
   ListColumns,
@@ -91,6 +92,7 @@ const query = ref('SELECT 1;')
 const queryEditorRef = ref(null)
 const queryHistory = ref([])
 const selectedHistoryIndex = ref('')
+const runningQueryId = ref('')
 const resultGridRef = ref(null)
 const resultGridScrollTop = ref(0)
 const resultTabs = ref([])
@@ -1091,6 +1093,26 @@ async function explainQuery() {
   await executeSql('explain')
 }
 
+async function cancelRunningQuery() {
+  if (!runningQueryId.value) return
+  const queryID = runningQueryId.value
+  addLog('warn', 'Cancel SQL query', logContext({queryId: queryID}))
+  if (!hasRuntime()) {
+    runningQueryId.value = ''
+    busy.value = false
+    setMessage('Preview query cancelled', 'warn', logContext({queryId: queryID}))
+    return
+  }
+  try {
+    const cancelled = await CancelQuery(queryID)
+    if (!cancelled) {
+      setMessage('查询已结束，无法取消', 'warn', logContext({queryId: queryID}))
+    }
+  } catch (error) {
+    setMessage(errorMessage(error), 'error', logContext({operation: 'cancelQuery', queryId: queryID}))
+  }
+}
+
 async function executeSql(mode = 'query') {
   const sql = currentSqlText()
   if (!sql) {
@@ -1105,7 +1127,9 @@ async function executeSql(mode = 'query') {
   addQueryHistory(sql)
   const profileId = activeProfileId.value
   const startedAt = perfStart()
-  addLog('info', mode === 'explain' ? 'Explain SQL' : 'Execute SQL', logContext({profileId, database: selectedDatabase.value, sql: executableSql.slice(0, 180)}))
+  const queryID = newId()
+  runningQueryId.value = queryID
+  addLog('info', mode === 'explain' ? 'Explain SQL' : 'Execute SQL', logContext({profileId, database: selectedDatabase.value, queryId: queryID, sql: executableSql.slice(0, 180)}))
   busy.value = true
   try {
     if (!hasRuntime()) {
@@ -1117,7 +1141,7 @@ async function executeSql(mode = 'query') {
       setMessage('Preview result', 'success', logContext({elapsedMs: elapsedSince(startedAt), rows: 1}))
       return
     }
-    const nextResult = await Execute(profileId, executableSql, selectedDatabase.value)
+    const nextResult = await ExecuteWithID(queryID, profileId, executableSql, selectedDatabase.value)
     appendResultTab({mode, sql: executableSql, result: nextResult})
     if (mode === 'query' && selectedDatabase.value && isSchemaChangingSql(executableSql)) {
       invalidateSchemaCache(profileId, selectedDatabase.value, '', {tableList: true})
@@ -1127,8 +1151,11 @@ async function executeSql(mode = 'query') {
     setMessage(nextResult.message || '执行完成', 'success', logContext({elapsedMs: nextResult.elapsedMs, totalElapsedMs: elapsedSince(startedAt), rows: nextResult.rows?.length || 0, affected: nextResult.rowsAffected || 0}))
     if (selectedTable.value) await loadTablePage(tableData.value.page)
   } catch (error) {
-    setMessage(errorMessage(error), 'error', logContext({operation: mode === 'explain' ? 'explain' : 'execute'}))
+    const message = errorMessage(error)
+    const wasCancelled = /context canceled|cancel/i.test(message)
+    setMessage(wasCancelled ? '查询已取消' : message, wasCancelled ? 'warn' : 'error', logContext({operation: mode === 'explain' ? 'explain' : 'execute', queryId: queryID}))
   } finally {
+    if (runningQueryId.value === queryID) runningQueryId.value = ''
     busy.value = false
   }
 }
@@ -2218,6 +2245,7 @@ function demoTableData(page = 1, pageSize = 50) {
                 <span>▶</span>
                 <span>Run</span>
               </button>
+              <button class="toolbar-action danger-action" :disabled="!runningQueryId" title="Cancel running SQL query" @click="cancelRunningQuery">Cancel</button>
               <button class="toolbar-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" @click="explainQuery">Explain</button>
               <button class="toolbar-action" title="Open SQL file" @click="openSqlFile">Open</button>
               <button class="toolbar-action" title="Format SQL" @click="formatQuery">Format</button>
@@ -3637,6 +3665,16 @@ button:disabled {
 
 .primary-action:hover:not(:disabled) {
   background: rgba(77, 179, 99, 0.24);
+}
+
+.danger-action:not(:disabled) {
+  color: #ffd4ce;
+  background: rgba(244, 87, 82, 0.12);
+  border-color: rgba(244, 87, 82, 0.34);
+}
+
+.danger-action:hover:not(:disabled) {
+  background: rgba(244, 87, 82, 0.22);
 }
 
 .template-action {

@@ -6,6 +6,10 @@ export function BulkInsertRows(arg1) {
   return window['go']['main']['App']['BulkInsertRows'](arg1);
 }
 
+export function CancelQuery(arg1) {
+  return window['go']['main']['App']['CancelQuery'](arg1);
+}
+
 export function ChoosePrivateKeyPath() {
   return window['go']['main']['App']['ChoosePrivateKeyPath']();
 }
@@ -36,6 +40,10 @@ export function DisconnectProfile(arg1) {
 
 export function Execute(arg1, arg2, arg3) {
   return window['go']['main']['App']['Execute'](arg1, arg2, arg3);
+}
+
+export function ExecuteWithID(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ExecuteWithID'](arg1, arg2, arg3, arg4);
 }
 
 export function GetTableData(arg1) {

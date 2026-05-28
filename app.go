@@ -23,6 +23,7 @@ type App struct {
 	mu              sync.Mutex
 	sessions        map[string]*ConnectionSession
 	activeProfileID string
+	queryCancels    map[string]context.CancelFunc
 }
 
 type ConnectionSession struct {
@@ -166,7 +167,10 @@ type SSHTunnel struct {
 }
 
 func NewApp() *App {
-	return &App{sessions: make(map[string]*ConnectionSession)}
+	return &App{
+		sessions:     make(map[string]*ConnectionSession),
+		queryCancels: make(map[string]context.CancelFunc),
+	}
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -885,6 +889,10 @@ func (a *App) DeleteTableRow(mutation RowMutation) (int64, error) {
 }
 
 func (a *App) Execute(profileID string, query string, database string) (QueryResult, error) {
+	return a.ExecuteWithID("", profileID, query, database)
+}
+
+func (a *App) ExecuteWithID(queryID string, profileID string, query string, database string) (QueryResult, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return QueryResult{}, errors.New("query is empty")
@@ -896,6 +904,10 @@ func (a *App) Execute(profileID string, query string, database string) (QueryRes
 
 	ctx, cancel := context.WithTimeout(a.ctx, 2*time.Minute)
 	defer cancel()
+	if queryID != "" {
+		a.registerQueryCancel(queryID, cancel)
+		defer a.unregisterQueryCancel(queryID)
+	}
 
 	conn, err := db.Conn(ctx)
 	if err != nil {
@@ -927,6 +939,37 @@ func (a *App) Execute(profileID string, query string, database string) (QueryRes
 		ElapsedMs:    elapsed,
 		Message:      "Query executed successfully",
 	}, nil
+}
+
+func (a *App) CancelQuery(queryID string) bool {
+	queryID = strings.TrimSpace(queryID)
+	if queryID == "" {
+		return false
+	}
+	a.mu.Lock()
+	cancel := a.queryCancels[queryID]
+	delete(a.queryCancels, queryID)
+	a.mu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
+func (a *App) registerQueryCancel(queryID string, cancel context.CancelFunc) {
+	a.mu.Lock()
+	if a.queryCancels == nil {
+		a.queryCancels = make(map[string]context.CancelFunc)
+	}
+	a.queryCancels[queryID] = cancel
+	a.mu.Unlock()
+}
+
+func (a *App) unregisterQueryCancel(queryID string) {
+	a.mu.Lock()
+	delete(a.queryCancels, queryID)
+	a.mu.Unlock()
 }
 
 func (a *App) currentDB(profileID string) (*sql.DB, error) {

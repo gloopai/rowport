@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function BulkInsertRows(arg1:main.BulkInsertRequest):Promise<number>;
 
+export function CancelQuery(arg1:string):Promise<boolean>;
+
 export function ChoosePrivateKeyPath():Promise<string>;
 
 export function Connect(arg1:main.ConnectionConfig):Promise<main.ConnectionStatus>;
@@ -19,6 +21,8 @@ export function DisconnectAll():Promise<void>;
 export function DisconnectProfile(arg1:string):Promise<void>;
 
 export function Execute(arg1:string,arg2:string,arg3:string):Promise<main.QueryResult>;
+
+export function ExecuteWithID(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.QueryResult>;
 
 export function GetTableData(arg1:main.TableDataRequest):Promise<main.TableDataResult>;
 
