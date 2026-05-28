@@ -1384,6 +1384,10 @@ function isNullableColumn(column) {
   return column?.nullable === 'YES'
 }
 
+function isPrimaryKeyColumn(column) {
+  return tableData.value.primaryKeys.includes(column?.name)
+}
+
 function isLongTextColumn(column) {
   const type = String(column?.type || '').toLowerCase()
   return type.includes('text') || type.includes('json') || type.includes('blob') || type.includes('longvarchar')
@@ -2481,30 +2485,46 @@ function demoTableData(page = 1, pageSize = 50) {
     </div>
 
     <div v-if="editDialogOpen" class="dialog-backdrop">
-      <form class="dialog compact-dialog" @submit.prevent="saveRow">
+      <form class="dialog compact-dialog row-dialog" @submit.prevent="saveRow">
         <header>
-          <h2>编辑行</h2>
+          <div class="dialog-title">
+            <h2>编辑行</h2>
+            <span>{{ selectedDatabase }}.{{ selectedTable }} · 主键字段只读</span>
+          </div>
           <button type="button" class="icon-close" @click="editDialogOpen = false">×</button>
         </header>
+        <div class="row-editor-summary">
+          <span>{{ tableData.columns.length }} 个字段</span>
+          <span>{{ tableData.primaryKeys.length }} 个主键</span>
+          <span>保存后会立即写入数据库</span>
+        </div>
         <div class="dialog-body row-editor">
-          <label v-for="column in tableData.columns" :key="column.name" class="field">
+          <div
+            v-for="column in tableData.columns"
+            :key="column.name"
+            class="field row-field"
+            :class="{'is-primary': isPrimaryKeyColumn(column), 'is-null': editNulls[column.name], 'is-long': isLongTextColumn(column)}"
+          >
             <span class="field-heading">
-              <span>{{ column.name }}</span>
-              <small>{{ column.type }}<template v-if="tableData.primaryKeys.includes(column.name)"> · PRIMARY</template></small>
+              <span class="field-name">{{ column.name }}</span>
+              <span class="field-meta">
+                <span v-if="isPrimaryKeyColumn(column)" class="field-badge key-badge">PRIMARY</span>
+                <span class="field-type">{{ column.type }}</span>
+              </span>
             </span>
-            <label v-if="isNullableColumn(column)" class="null-toggle">
-              <input v-model="editNulls[column.name]" type="checkbox" :disabled="tableData.primaryKeys.includes(column.name)" data-native-context>
+            <label v-if="isNullableColumn(column)" class="null-toggle" :class="{active: editNulls[column.name], disabled: isPrimaryKeyColumn(column)}">
+              <input v-model="editNulls[column.name]" type="checkbox" :disabled="isPrimaryKeyColumn(column)" data-native-context>
               <span>NULL</span>
             </label>
             <textarea
               v-if="isLongTextColumn(column)"
               v-model="editValues[column.name]"
-              :disabled="tableData.primaryKeys.includes(column.name) || editNulls[column.name]"
+              :disabled="isPrimaryKeyColumn(column) || editNulls[column.name]"
               rows="4"
               data-native-context
             ></textarea>
-            <input v-else v-model="editValues[column.name]" :disabled="tableData.primaryKeys.includes(column.name) || editNulls[column.name]" data-native-context>
-          </label>
+            <input v-else v-model="editValues[column.name]" :disabled="isPrimaryKeyColumn(column) || editNulls[column.name]" data-native-context>
+          </div>
         </div>
         <footer>
           <button type="button" class="ghost" @click="editDialogOpen = false">取消</button>
@@ -2514,18 +2534,33 @@ function demoTableData(page = 1, pageSize = 50) {
     </div>
 
     <div v-if="insertDialogOpen" class="dialog-backdrop">
-      <form class="dialog compact-dialog" @submit.prevent="saveInsertRow">
+      <form class="dialog compact-dialog row-dialog" @submit.prevent="saveInsertRow">
         <header>
-          <h2>新增行</h2>
+          <div class="dialog-title">
+            <h2>新增行</h2>
+            <span>{{ selectedDatabase }}.{{ selectedTable }} · 自增字段已跳过</span>
+          </div>
           <button type="button" class="icon-close" @click="insertDialogOpen = false">×</button>
         </header>
+        <div class="row-editor-summary">
+          <span>{{ tableData.columns.filter((item) => !String(item.extra || '').includes('auto_increment')).length }} 个可填写字段</span>
+          <span>保存后会立即写入数据库</span>
+        </div>
         <div class="dialog-body row-editor">
-          <label v-for="column in tableData.columns.filter((item) => !String(item.extra || '').includes('auto_increment'))" :key="column.name" class="field">
+          <div
+            v-for="column in tableData.columns.filter((item) => !String(item.extra || '').includes('auto_increment'))"
+            :key="column.name"
+            class="field row-field"
+            :class="{'is-null': insertNulls[column.name], 'is-long': isLongTextColumn(column)}"
+          >
             <span class="field-heading">
-              <span>{{ column.name }}</span>
-              <small>{{ column.type }}<template v-if="column.default !== null && column.default !== undefined"> · 默认 {{ column.default }}</template></small>
+              <span class="field-name">{{ column.name }}</span>
+              <span class="field-meta">
+                <span v-if="column.default !== null && column.default !== undefined" class="field-badge">默认 {{ column.default }}</span>
+                <span class="field-type">{{ column.type }}</span>
+              </span>
             </span>
-            <label v-if="isNullableColumn(column)" class="null-toggle">
+            <label v-if="isNullableColumn(column)" class="null-toggle" :class="{active: insertNulls[column.name]}">
               <input v-model="insertNulls[column.name]" type="checkbox" data-native-context>
               <span>NULL</span>
             </label>
@@ -2538,7 +2573,7 @@ function demoTableData(page = 1, pageSize = 50) {
               data-native-context
             ></textarea>
             <input v-else v-model="insertValues[column.name]" :disabled="insertNulls[column.name]" :placeholder="column.type" data-native-context>
-          </label>
+          </div>
         </div>
         <footer>
           <button type="button" class="ghost" @click="insertDialogOpen = false">取消</button>
@@ -3952,6 +3987,54 @@ h2 {
   gap: 10px;
 }
 
+.field-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #c7ccd5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-meta {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-type {
+  min-width: 0;
+  overflow: hidden;
+  color: #7f8792;
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-badge {
+  flex: 0 0 auto;
+  max-width: 130px;
+  overflow: hidden;
+  padding: 2px 6px;
+  color: #aeb6c2;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #363a41;
+  border: 1px solid #4a4e55;
+  border-radius: 999px;
+}
+
+.key-badge {
+  color: #d8e6ff;
+  background: rgba(77, 141, 247, 0.18);
+  border-color: rgba(77, 141, 247, 0.38);
+}
+
 .field-heading small {
   min-width: 0;
   overflow: hidden;
@@ -4020,6 +4103,10 @@ h2 {
   width: min(620px, 100%);
 }
 
+.row-dialog {
+  width: min(820px, 100%);
+}
+
 .filter-dialog {
   width: min(620px, 100%);
 }
@@ -4076,6 +4163,27 @@ h2 {
   padding: 18px;
   overflow: auto;
   background: #2b2d30;
+}
+
+.row-editor-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 18px;
+  color: #a8afb9;
+  font-size: 12px;
+  background: #272a2f;
+  border-bottom: 1px solid #3f434a;
+}
+
+.row-editor-summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  background: #202226;
+  border: 1px solid #3a3d44;
+  border-radius: 999px;
 }
 
 .import-preview-grid {
@@ -4212,11 +4320,37 @@ h2 {
 .null-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   width: fit-content;
-  color: #9aa3af;
+  min-height: 24px;
+  padding: 2px 8px 2px 4px;
+  color: #aeb4be;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 700;
+  background: #24272c;
+  border: 1px solid #3f434a;
+  border-radius: 999px;
+}
+
+.null-toggle input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  min-height: 14px;
+  margin: 0;
+  padding: 0;
+  accent-color: #4d8df7;
+}
+
+.null-toggle.active {
+  color: #d8e6ff;
+  background: rgba(77, 141, 247, 0.16);
+  border-color: rgba(77, 141, 247, 0.45);
+}
+
+.null-toggle.disabled {
+  opacity: 0.55;
 }
 
 .check-row input {
@@ -4232,8 +4366,76 @@ h2 {
 
 .row-editor {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 12px 14px 14px;
+}
+
+.row-field {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 84px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-height: 58px;
+  padding: 8px 10px;
+  background: #25272b;
+  border: 1px solid #3b3f46;
+  border-radius: 6px;
+}
+
+.row-field .field-heading {
+  grid-column: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.row-field .field-meta {
+  max-width: 100%;
+}
+
+.row-field.is-primary {
+  background: #262b33;
+  border-color: #465267;
+}
+
+.row-field.is-null input,
+.row-field.is-null textarea {
+  color: #7f8792;
+  background: #202226;
+}
+
+.row-field > input,
+.row-field > textarea {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.row-field .null-toggle {
+  grid-column: 2;
+  grid-row: 1;
+  margin-top: 3px;
+}
+
+.row-field textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.row-field.is-long {
+  min-height: 96px;
+}
+
+.row-field input:disabled,
+.row-field textarea:disabled {
+  color: #858b95;
+  background: #202226;
+  border-color: #393d43;
+  cursor: not-allowed;
 }
 
 .filter-builder {

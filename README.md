@@ -8,7 +8,7 @@
 
 [Project plan and product TODO](docs/PROJECT_PLAN.zh-CN.md)
 
-RowPort is a desktop MySQL client built with Wails, Go, and Vue. It focuses on the everyday database workflow: connecting to servers, browsing schemas, editing table rows, and running SQL without leaving a compact native app.
+RowPort is a fast, restrained desktop MySQL client built with Wails, Go, and Vue. It focuses on the everyday database workflow: connecting to servers, browsing schemas, editing table rows, and running SQL without leaving a compact native app.
 
 The project is early but usable. It is being prepared as an open source GitHub project, so the current goal is a clean local developer experience, clear security boundaries, and a small core feature set that can grow without becoming a heavy database IDE.
 
