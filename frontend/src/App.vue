@@ -1,6 +1,9 @@
 <script setup>
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import SqlEditorToolbar from './components/SqlEditorToolbar.vue'
+import SqlResultPane from './components/SqlResultPane.vue'
 import SqlSidePanel from './components/SqlSidePanel.vue'
+import SqlTextEditor from './components/SqlTextEditor.vue'
 import {
   BulkInsertRows,
   CancelQuery,
@@ -97,7 +100,7 @@ const queryHistory = ref([])
 const selectedHistoryId = ref('')
 const historySearch = ref('')
 const runningQueryId = ref('')
-const resultGridRef = ref(null)
+const sqlResultPaneRef = ref(null)
 const resultGridScrollTop = ref(0)
 const resultTabs = ref([])
 const activeResultTabId = ref('')
@@ -332,14 +335,15 @@ onBeforeUnmount(() => {
 function observeQueryToolbar() {
   syncQueryToolbarHeight()
   queryToolbarObserver?.disconnect()
-  if (!queryToolbarRef.value || typeof ResizeObserver === 'undefined') return
+  const toolbarElement = queryToolbarRef.value?.getElement?.()
+  if (!toolbarElement || typeof ResizeObserver === 'undefined') return
   queryToolbarObserver = new ResizeObserver(syncQueryToolbarHeight)
-  queryToolbarObserver.observe(queryToolbarRef.value)
+  queryToolbarObserver.observe(toolbarElement)
 }
 
 function syncQueryToolbarHeight() {
   nextTick(() => {
-    const height = queryToolbarRef.value?.getBoundingClientRect?.().height || 40
+    const height = queryToolbarRef.value?.getElement?.()?.getBoundingClientRect?.().height || 40
     queryToolbarHeight.value = Math.max(40, Math.ceil(height))
   })
 }
@@ -675,7 +679,7 @@ function resetGridScroll(kind) {
   if (kind === 'result') {
     resultGridScrollTop.value = 0
     nextTick(() => {
-      if (resultGridRef.value) resultGridRef.value.scrollTop = 0
+      sqlResultPaneRef.value?.scrollToTop()
     })
   }
   if (kind === 'data') {
@@ -1408,7 +1412,7 @@ function explainSql(sql) {
 }
 
 function syncQuerySelection() {
-  const editor = queryEditorRef.value
+  const editor = queryEditorRef.value?.getElement?.()
   if (!editor) return
   querySelection.value = {
     start: editor.selectionStart ?? 0,
@@ -1417,7 +1421,7 @@ function syncQuerySelection() {
 }
 
 function sqlExecutionTarget(target = 'smart') {
-  const editor = queryEditorRef.value
+  const editor = queryEditorRef.value?.getElement?.()
   const start = editor?.selectionStart ?? 0
   const end = editor?.selectionEnd ?? 0
   const selected = start !== end ? query.value.slice(start, end).trim() : ''
@@ -2620,101 +2624,48 @@ function demoTableData(page = 1, pageSize = 50) {
 
       <section class="editor-area">
         <div v-if="currentTab?.kind === 'query'" class="query-surface" :style="{gridTemplateRows: queryRows}">
-          <div ref="queryToolbarRef" class="query-toolbar">
-            <div class="query-toolbar-title">
-              <span class="query-title-icon">⌁</span>
-              <div>
-                <strong>SQL Console</strong>
-                <span>{{ selectedDatabase || 'No database selected' }}</span>
-              </div>
-            </div>
-            <span class="toolbar-divider"></span>
-            <div class="toolbar-group">
-              <span class="toolbar-label">Execute</span>
-              <button class="toolbar-action primary-action" :disabled="busy" title="Run selected SQL, otherwise the statement at cursor" @click="runQuery('smart')">
-                <span>▶</span>
-                <span>Run</span>
-              </button>
-              <button class="toolbar-action danger-action" :disabled="!runningQueryId" title="Cancel running SQL query" @click="cancelRunningQuery">■ Stop</button>
-              <button class="toolbar-action" :disabled="busy" title="Run statement at cursor" @click="runQuery('current')">Current</button>
-              <button class="toolbar-action" :disabled="busy" title="Run every SQL statement in the editor" @click="runQuery('all')">All</button>
-              <button class="toolbar-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" @click="explainQuery('smart')">Explain</button>
-              <button class="toolbar-action" title="Open SQL file" @click="openSqlFile">▣ Open</button>
-            </div>
-            <div class="toolbar-fill"></div>
-            <span class="shortcut-hint">Cmd/Ctrl+Enter current · Shift+Cmd/Ctrl+Enter all</span>
-          </div>
+          <SqlEditorToolbar
+            ref="queryToolbarRef"
+            :selected-database="selectedDatabase"
+            :busy="busy"
+            :running-query-id="runningQueryId"
+            @run="runQuery"
+            @cancel="cancelRunningQuery"
+            @explain="explainQuery"
+            @open-sql="openSqlFile"
+          />
           <div class="query-workspace">
             <div class="query-main-stack" :style="{gridTemplateRows: queryMainRows}">
-          <div class="sql-surface">
-            <div class="line-gutter">
-              <span v-for="line in 24" :key="line">{{ line }}</span>
-            </div>
-            <textarea
-              ref="queryEditorRef"
-              v-model="query"
-              spellcheck="false"
-              data-native-context
-              @keydown="handleQueryKeydown"
-              @select="syncQuerySelection"
-              @keyup="syncQuerySelection"
-              @mouseup="syncQuerySelection"
-              @input="syncQuerySelection"
-            ></textarea>
-          </div>
+          <SqlTextEditor
+            ref="queryEditorRef"
+            v-model="query"
+            @keydown="handleQueryKeydown"
+            @selection-change="syncQuerySelection"
+          />
           <div
             class="resize-handle horizontal query-result-resizer"
             title="Drag to resize SQL results"
             @mousedown="beginResize('queryResult', $event)"
             @dblclick="resetPaneSize('queryResult')"
           ></div>
-          <div class="query-result">
-            <div class="result-toolbar">
-              <div class="result-tabs">
-                <button
-                  v-for="tab in resultTabs"
-                  :key="tab.id"
-                  :class="{active: tab.id === activeResultTabId}"
-                  :title="compactSql(tab.sql)"
-                  @click="activeResultTabId = tab.id"
-                >
-                  <span>{{ tab.title }}</span>
-                  <span class="tab-close" @click="closeResultTab(tab.id, $event)">×</span>
-                </button>
-                <span v-if="!resultTabs.length" class="result-placeholder">Result</span>
-              </div>
-              <div class="result-actions">
-                <span>{{ activeResultTab?.message || 'Ready' }}</span>
-                <span>{{ activeResultTab?.elapsedMs || 0 }} ms</span>
-                <button :disabled="!activeResultTab?.columns?.length" @click="copyResultRows">Copy</button>
-                <button :disabled="!activeResultTab?.columns?.length" @click="exportResultCsv">CSV</button>
-                <button :disabled="!activeResultTab?.columns?.length" @click="exportResultJson">JSON</button>
-              </div>
-            </div>
-            <div ref="resultGridRef" class="grid-wrap" @scroll="handleResultGridScroll">
-              <table v-if="activeResultTab?.columns?.length" class="data-grid">
-                <thead>
-                  <tr>
-                    <th class="row-num"></th>
-                    <th v-for="column in activeResultTab.columns" :key="column">{{ column }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-if="resultTopSpacerHeight" class="virtual-spacer-row">
-                    <td :colspan="resultGridColspan" :style="{height: `${resultTopSpacerHeight}px`}"></td>
-                  </tr>
-                  <tr v-for="item in virtualResultRows.items" :key="item.index" @dblclick="openResultDetail(item.row, item.index)">
-                    <td class="row-num">{{ item.index + 1 }}</td>
-                    <td v-for="(value, cellIndex) in item.row" :key="cellIndex">{{ value ?? '<null>' }}</td>
-                  </tr>
-                  <tr v-if="resultBottomSpacerHeight" class="virtual-spacer-row">
-                    <td :colspan="resultGridColspan" :style="{height: `${resultBottomSpacerHeight}px`}"></td>
-                  </tr>
-                </tbody>
-              </table>
-              <div v-else class="empty-state">Run SQL to view results.</div>
-            </div>
-          </div>
+          <SqlResultPane
+            ref="sqlResultPaneRef"
+            :result-tabs="resultTabs"
+            :active-result-tab-id="activeResultTabId"
+            :active-result-tab="activeResultTab"
+            :virtual-result-rows="virtualResultRows"
+            :result-top-spacer-height="resultTopSpacerHeight"
+            :result-bottom-spacer-height="resultBottomSpacerHeight"
+            :result-grid-colspan="resultGridColspan"
+            :compact-sql="compactSql"
+            @activate-tab="activeResultTabId = $event"
+            @close-tab="closeResultTab"
+            @copy-rows="copyResultRows"
+            @export-csv="exportResultCsv"
+            @export-json="exportResultJson"
+            @open-row-detail="openResultDetail"
+            @scroll="handleResultGridScroll"
+          />
             </div>
             <SqlSidePanel
               v-model:history-search="historySearch"
@@ -3976,128 +3927,6 @@ button:disabled {
   overflow: hidden;
 }
 
-.query-toolbar {
-  display: flex;
-  align-items: center;
-  align-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-  min-height: 40px;
-  padding: 0 10px;
-  background: linear-gradient(#292b2f, #25272b);
-  border-bottom: 1px solid var(--line);
-}
-
-.query-toolbar-title {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  gap: 8px;
-  min-width: 176px;
-  color: #d9dde5;
-}
-
-.query-toolbar-title strong,
-.query-toolbar-title span {
-  display: block;
-}
-
-.query-toolbar-title strong {
-  font-size: 12px;
-  line-height: 15px;
-  font-weight: 700;
-}
-
-.query-toolbar-title div > span {
-  max-width: 138px;
-  overflow: hidden;
-  color: #858b95;
-  font-size: 11px;
-  line-height: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.query-title-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  color: #35a7e8;
-  background: rgba(53, 167, 232, 0.08);
-  border: 1px solid rgba(53, 167, 232, 0.22);
-  border-radius: 5px;
-}
-
-.toolbar-group {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 1 auto;
-  gap: 4px;
-  min-width: 0;
-}
-
-.toolbar-label {
-  margin-right: 2px;
-  color: #737982;
-  font-size: 11px;
-}
-
-.toolbar-divider {
-  flex: 0 0 auto;
-  width: 1px;
-  height: 20px;
-  background: #3b3e44;
-}
-
-.toolbar-action,
-.template-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  height: 24px;
-  min-height: 24px;
-  padding: 0 8px;
-  color: #cbd1db;
-  background: transparent;
-  border-color: transparent;
-}
-
-.toolbar-action:hover:not(:disabled),
-.template-action:hover:not(:disabled) {
-  color: #ffffff;
-  background: #343840;
-}
-
-.primary-action {
-  color: #d9f2dd;
-  background: rgba(77, 179, 99, 0.14);
-  border-color: rgba(77, 179, 99, 0.32);
-}
-
-.primary-action:hover:not(:disabled) {
-  background: rgba(77, 179, 99, 0.24);
-}
-
-.danger-action:not(:disabled) {
-  color: #ffd4ce;
-  background: rgba(244, 87, 82, 0.12);
-  border-color: rgba(244, 87, 82, 0.34);
-}
-
-.danger-action:hover:not(:disabled) {
-  background: rgba(244, 87, 82, 0.22);
-}
-
-.template-action {
-  color: #b9c4d3;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 11px;
-}
-
 .query-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 268px;
@@ -4112,92 +3941,10 @@ button:disabled {
   overflow: hidden;
 }
 
-.shortcut-hint {
-  flex: 0 0 auto;
-  color: #737982;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-@media (max-width: 1280px) {
-  .query-toolbar {
-    gap: 6px;
-  }
-
-  .query-toolbar-title {
-    min-width: 138px;
-  }
-
-  .toolbar-label,
-  .shortcut-hint {
-    display: none;
-  }
-
-  .toolbar-action,
-  .template-action {
-    padding: 0 7px;
-  }
-}
-
 @media (max-width: 1040px) {
-  .query-toolbar-title {
-    min-width: auto;
-  }
-
-  .query-toolbar-title > div {
-    display: none;
-  }
-
-  .toolbar-divider {
-    display: none;
-  }
-
   .query-workspace {
     grid-template-columns: minmax(0, 1fr) 220px;
   }
-
-}
-
-.sql-surface {
-  display: grid;
-  grid-template-columns: 68px minmax(0, 1fr);
-  min-height: 0;
-  overflow: hidden;
-  background: #1f2023;
-}
-
-.line-gutter {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  padding: 8px 12px 0 0;
-  color: #5f646d;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  line-height: 24px;
-  border-right: 1px solid var(--line-soft);
-}
-
-.sql-surface textarea {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  padding: 8px 16px;
-  color: #c9ccd2;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  line-height: 24px;
-  resize: none;
-  outline: none;
-  background:
-    linear-gradient(transparent 23px, rgba(255, 255, 255, 0.025) 24px) 0 0 / 100% 24px,
-  #1f2023;
-}
-
-.query-result {
-  display: grid;
-  grid-template-rows: 31px minmax(0, 1fr);
-  min-height: 0;
-  overflow: hidden;
-  background: #1f2023;
 }
 
 .query-result-resizer {
@@ -4209,72 +3956,6 @@ button:disabled {
 
 .query-result-resizer:hover {
   background: #3a3f48;
-}
-
-.result-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 8px;
-  color: var(--muted);
-  border-bottom: 1px solid var(--line);
-}
-
-.result-tabs,
-.result-actions {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: 4px;
-}
-
-.result-tabs {
-  flex: 1;
-  overflow: hidden;
-}
-
-.result-tabs button {
-  display: inline-flex;
-  align-items: center;
-  max-width: 170px;
-  height: 25px;
-  min-height: 25px;
-  padding: 0 6px 0 9px;
-  color: #9fa6b2;
-  background: transparent;
-  border-color: transparent;
-}
-
-.result-tabs button.active {
-  color: #eef2f8;
-  background: #343840;
-  border-color: #454b55;
-}
-
-.result-tabs button > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.result-placeholder {
-  color: var(--text);
-  font-weight: 700;
-}
-
-.result-actions {
-  flex: 0 0 auto;
-  color: #858b95;
-}
-
-.result-actions button {
-  min-height: 23px;
-  padding: 0 7px;
-  color: #aeb8c7;
-  background: #2d3035;
-  border-color: #3e434a;
 }
 
 .data-surface {
