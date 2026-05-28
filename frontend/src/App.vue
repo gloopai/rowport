@@ -130,6 +130,7 @@ const tableDDLs = ref({})
 const explorerWidth = ref(360)
 const servicesHeight = ref(240)
 const servicesTreeWidth = ref(240)
+const queryResultHeight = ref(240)
 let resizeState = null
 let columnResizeState = null
 const VIRTUAL_ROW_HEIGHT = 27
@@ -151,6 +152,7 @@ const currentTab = computed(() => openTabs.value.find((tab) => tab.id === active
 const shellColumns = computed(() => `${explorerWidth.value}px 6px minmax(0, 1fr)`)
 const mainRows = computed(() => `37px 34px minmax(0, 1fr) ${servicesHeight.value}px 24px`)
 const servicesColumns = computed(() => `${servicesTreeWidth.value}px 6px minmax(0, 1fr)`)
+const queryRows = computed(() => `40px minmax(120px, 1fr) 6px ${queryResultHeight.value}px`)
 const selectedMetadata = computed(() => tableMetadata.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || {columns: [], indexes: []})
 const activeResultTab = computed(() => resultTabs.value.find((tab) => tab.id === activeResultTabId.value) || null)
 const activeResultRows = computed(() => activeResultTab.value?.rows || [])
@@ -294,6 +296,7 @@ function loadLayout() {
     explorerWidth.value = clamp(Number(layout.explorerWidth) || 360, 240, 620)
     servicesHeight.value = clamp(Number(layout.servicesHeight) || 240, 150, 520)
     servicesTreeWidth.value = clamp(Number(layout.servicesTreeWidth) || 240, 160, 520)
+    queryResultHeight.value = clamp(Number(layout.queryResultHeight) || 240, 120, 560)
   } catch {
     persistLayout()
   }
@@ -303,7 +306,8 @@ function persistLayout() {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify({
     explorerWidth: explorerWidth.value,
     servicesHeight: servicesHeight.value,
-    servicesTreeWidth: servicesTreeWidth.value
+    servicesTreeWidth: servicesTreeWidth.value,
+    queryResultHeight: queryResultHeight.value
   }))
 }
 
@@ -319,10 +323,11 @@ function beginResize(kind, event) {
     startY: event.clientY,
     explorerWidth: explorerWidth.value,
     servicesHeight: servicesHeight.value,
-    servicesTreeWidth: servicesTreeWidth.value
+    servicesTreeWidth: servicesTreeWidth.value,
+    queryResultHeight: queryResultHeight.value
   }
   document.body.classList.add('is-resizing')
-  document.body.style.cursor = kind === 'services' ? 'row-resize' : 'col-resize'
+  document.body.style.cursor = kind === 'services' || kind === 'queryResult' ? 'row-resize' : 'col-resize'
   window.addEventListener('mousemove', resizePane)
   window.addEventListener('mouseup', stopResize)
 }
@@ -337,6 +342,9 @@ function resizePane(event) {
   }
   if (resizeState.kind === 'servicesTree') {
     servicesTreeWidth.value = clamp(resizeState.servicesTreeWidth + event.clientX - resizeState.startX, 160, 520)
+  }
+  if (resizeState.kind === 'queryResult') {
+    queryResultHeight.value = clamp(resizeState.queryResultHeight - (event.clientY - resizeState.startY), 120, 560)
   }
 }
 
@@ -354,6 +362,7 @@ function resetPaneSize(kind) {
   if (kind === 'explorer') explorerWidth.value = 360
   if (kind === 'services') servicesHeight.value = 240
   if (kind === 'servicesTree') servicesTreeWidth.value = 240
+  if (kind === 'queryResult') queryResultHeight.value = 240
   persistLayout()
 }
 
@@ -2387,7 +2396,7 @@ function demoTableData(page = 1, pageSize = 50) {
       </div>
 
       <section class="editor-area">
-        <div v-if="currentTab?.kind === 'query'" class="query-surface">
+        <div v-if="currentTab?.kind === 'query'" class="query-surface" :style="{gridTemplateRows: queryRows}">
           <div class="query-toolbar">
             <div class="query-toolbar-title">
               <span class="query-title-icon">⌁</span>
@@ -2454,6 +2463,12 @@ function demoTableData(page = 1, pageSize = 50) {
               @input="syncQuerySelection"
             ></textarea>
           </div>
+          <div
+            class="resize-handle horizontal query-result-resizer"
+            title="Drag to resize SQL results"
+            @mousedown="beginResize('queryResult', $event)"
+            @dblclick="resetPaneSize('queryResult')"
+          ></div>
           <div class="query-result">
             <div class="result-toolbar">
               <div class="result-tabs">
@@ -3730,7 +3745,6 @@ button:disabled {
 
 .query-surface {
   display: grid;
-  grid-template-rows: 40px minmax(180px, 1fr) 190px;
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -3910,7 +3924,17 @@ button:disabled {
   min-height: 0;
   overflow: hidden;
   background: #1f2023;
+}
+
+.query-result-resizer {
+  z-index: 3;
+  background: #2a2d33;
   border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.query-result-resizer:hover {
+  background: #3a3f48;
 }
 
 .result-toolbar {
