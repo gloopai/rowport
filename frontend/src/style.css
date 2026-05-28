@@ -671,3 +671,180 @@ h2 {
         grid-template-columns: 1fr;
     }
 }
+
+
+/* Application shell layout */
+html,
+body,
+#app {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+body.is-resizing {
+    cursor: col-resize;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+body.is-resizing * {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.ide-shell {
+    --bg: #1f2023;
+    --panel: #2b2d30;
+    --panel-dark: #252629;
+    --panel-darker: #1e1f22;
+    --line: #3a3d41;
+    --line-soft: #323539;
+    --text: #c9ccd2;
+    --muted: #8f949d;
+    --blue: #4d8df7;
+    --green: #4db363;
+    --orange: #d19965;
+    --pink: #cc78bc;
+    display: grid;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    color: var(--text);
+    background: var(--bg);
+    font-size: 13px;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.ide-shell input,
+.ide-shell textarea,
+.ide-shell [data-native-context],
+.ide-shell .ddl-view {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.ide-shell button,
+.ide-shell label,
+.ide-shell header,
+.ide-shell nav,
+.ide-shell footer,
+.ide-shell .tree-row,
+.ide-shell .statusbar,
+.ide-shell .floating-count {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.ide-main {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--panel-darker);
+}
+
+.editor-area {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.query-surface {
+    display: grid;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.query-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.query-main-stack {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.resize-handle {
+    position: relative;
+    z-index: 4;
+    background: var(--line);
+    transition: background 120ms ease;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+    background: #4d8df7;
+}
+
+.resize-handle.vertical {
+    width: 6px;
+    min-width: 6px;
+    cursor: col-resize;
+}
+
+.resize-handle.horizontal {
+    height: 6px;
+    min-height: 6px;
+    cursor: row-resize;
+}
+
+.explorer-resizer {
+    height: 100%;
+    background: #151619;
+}
+
+.query-result-resizer {
+    z-index: 3;
+    background: #2a2d33;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+}
+
+.query-result-resizer:hover {
+    background: #3a3f48;
+}
+
+.statusbar,
+.statusbar-fill {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.statusbar {
+    padding: 0 10px;
+    color: #a8adb6;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+}
+
+.statusbar-fill {
+    flex: 1;
+}
+
+.empty-workspace {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    color: #6f7580;
+    background: #1f2023;
+}
+
+@media (max-width: 1040px) {
+    .query-workspace {
+        grid-template-columns: minmax(0, 1fr) 196px;
+    }
+}
+
+@media (max-width: 900px) {
+    .ide-shell {
+        min-width: 720px;
+    }
+}
