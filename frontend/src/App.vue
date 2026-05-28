@@ -418,6 +418,30 @@ function metadataKey(profileId, database, table) {
   return `${profileId || activeProfileId.value}.${database}.${table}`
 }
 
+function clearTableMetadataCache(profileId, database, table = '') {
+  if (!profileId || !database) return
+  const exactKey = table ? metadataKey(profileId, database, table) : ''
+  const keyPrefix = `${profileId}.${database}.`
+  tableMetadata.value = Object.fromEntries(
+    Object.entries(tableMetadata.value).filter(([key]) => table ? key !== exactKey : !key.startsWith(keyPrefix))
+  )
+  tableDDLs.value = Object.fromEntries(
+    Object.entries(tableDDLs.value).filter(([key]) => table ? key !== exactKey : !key.startsWith(keyPrefix))
+  )
+}
+
+function clearTableListCache(profileId, database) {
+  if (!profileId || !database) return
+  const nextCache = {...getConnectionState(profileId).tableCache}
+  delete nextCache[database]
+  updateConnectionState(profileId, {tableCache: nextCache})
+}
+
+function invalidateSchemaCache(profileId, database, table = '', options = {}) {
+  clearTableMetadataCache(profileId, database, table)
+  if (options.tableList) clearTableListCache(profileId, database)
+}
+
 function treeKey(...parts) {
   return parts.join('/')
 }
@@ -1051,6 +1075,9 @@ async function refreshTables(profileId = activeProfileId.value, database = selec
   if (!force && state.tableCache[database]) return
   if (!hasRuntime()) return
   const startedAt = perfStart()
+  if (force) {
+    invalidateSchemaCache(profileId, database, '', {tableList: true})
+  }
   addLog('info', force ? 'Refresh tables' : 'Load tables', logContext({profileId, database}))
   try {
     const tables = await ListTables(profileId, database)
@@ -1099,6 +1126,11 @@ async function executeSql(mode = 'query') {
     }
     const nextResult = await Execute(profileId, executableSql, selectedDatabase.value)
     appendResultTab({mode, sql: executableSql, result: nextResult})
+    if (mode === 'query' && selectedDatabase.value && isSchemaChangingSql(executableSql)) {
+      invalidateSchemaCache(profileId, selectedDatabase.value, '', {tableList: true})
+      await refreshTables(profileId, selectedDatabase.value, true)
+      addLog('info', 'Schema cache invalidated after DDL', logContext({profileId, database: selectedDatabase.value}))
+    }
     setMessage(nextResult.message || '执行完成', 'success', logContext({elapsedMs: nextResult.elapsedMs, totalElapsedMs: elapsedSince(startedAt), rows: nextResult.rows?.length || 0, affected: nextResult.rowsAffected || 0}))
     if (selectedTable.value) await loadTablePage(tableData.value.page)
   } catch (error) {
@@ -1258,6 +1290,16 @@ function isDangerousSql(sql) {
     .trim()
     .toUpperCase()
   return /^(UPDATE|DELETE)\b/.test(normalized) && !/\bWHERE\b/.test(normalized)
+}
+
+function isSchemaChangingSql(sql) {
+  const normalized = sql
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/--.*$/gm, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+  return /^(ALTER|CREATE|DROP|RENAME|TRUNCATE)\b/.test(normalized)
 }
 
 function applyQueryHistory() {
