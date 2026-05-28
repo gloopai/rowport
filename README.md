@@ -151,7 +151,7 @@ go test ./...
 ## Roadmap
 
 - Add SSL/TLS options and host key verification.
-- Add query cancellation and richer query history.
+- Add richer query history, saved snippets, and result tools.
 - Add saved snippets and more result export tools.
 - Add release builds for macOS and Windows.
 - Add screenshots and short demo GIFs before the first public release.

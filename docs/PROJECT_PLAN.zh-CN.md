@@ -155,7 +155,7 @@ SQL 控制台：
 
 SQL 执行：
 
-- 查询取消尚未实现；后端使用 timeout，但用户无法主动 cancel。
+- 查询取消已经实现，但还缺少更细粒度的连接生命周期、断线检测和友好错误分类。
 - 查询历史目前只在 local storage 中保存最近 30 条，缺少搜索、收藏、命名和跨 profile 归属。
 - SQL 编辑器是 textarea 级别能力，缺少语法高亮、自动补全、错误定位、格式化质量和多结果集处理。
 - 危险 SQL 判断是前端启发式保护，不应被视为强安全边界。
@@ -440,16 +440,16 @@ SQL 执行：
 
 ### 7.1 文档与开源治理
 
-- [ ] P0 添加正式 `LICENSE`。
-- [ ] P0 添加 `CONTRIBUTING.md`，包含开发环境、代码风格、提交 PR 和验证说明。
-- [ ] P0 添加 `SECURITY.md`，说明漏洞报告方式和当前安全边界。
-- [ ] P0 添加 `CHANGELOG.md`。
-- [ ] P0 添加 GitHub issue templates。
-- [ ] P0 在 README 中增加项目状态：early preview / pre-release。
-- [ ] P0 在 README 中增加平台支持矩阵。
-- [ ] P0 在 README 中明确 SSH host key verification 尚未完成。
-- [ ] P0 在 README 中明确 SSL/TLS 选项尚未完成。
-- [ ] P0 在 README 中明确 RowPort 的差异化定位：fast, restrained, local-first MySQL client。
+- [x] P0 添加正式 `LICENSE`。
+- [x] P0 添加 `CONTRIBUTING.md`，包含开发环境、代码风格、提交 PR 和验证说明。
+- [x] P0 添加 `SECURITY.md`，说明漏洞报告方式和当前安全边界。
+- [x] P0 添加 `CHANGELOG.md`。
+- [x] P0 添加 GitHub issue templates。
+- [x] P0 在 README 中增加项目状态：early preview / pre-release。
+- [x] P0 在 README 中增加平台支持矩阵。
+- [x] P0 在 README 中明确 SSH host key verification 尚未完成。
+- [x] P0 在 README 中明确 SSL/TLS 选项尚未完成。
+- [x] P0 在 README 中明确 RowPort 的差异化定位：fast, restrained, local-first MySQL client。
 - [ ] P1 添加截图或 GIF，展示连接、数据库树、表数据和 SQL 控制台。
 - [ ] P1 添加 FAQ：连接失败、Keychain、SSH、Wails 编译问题。
 - [ ] P1 添加 release checklist。
@@ -472,14 +472,14 @@ SQL 执行：
 
 ### 7.3 连接与后端稳定性
 
-- [ ] P0 增加主动查询取消。
+- [x] P0 增加主动查询取消。
 - [ ] P0 增加连接错误分类和用户友好错误消息。
 - [ ] P0 为 DSN 构造、identifier quoting、where key 构造增加 Go 单元测试。
 - [ ] P0 为 SSH auth method 选择增加测试。
 - [ ] P1 增加连接 keepalive。
 - [ ] P1 增加断线检测和重连入口。
 - [ ] P1 增加连接池状态展示或调试信息。
-- [ ] P1 增加 schema 查询缓存失效策略。
+- [x] P1 增加 schema 查询缓存失效策略。
 - [ ] P1 支持刷新单个 database/table metadata。
 - [ ] P2 支持连接分组。
 - [ ] P2 支持 profile 搜索。
@@ -495,7 +495,8 @@ SQL 执行：
 - [ ] P1 支持收藏 SQL。
 - [ ] P1 支持保存 snippet。
 - [ ] P1 支持保存当前 SQL 到文件。
-- [ ] P1 支持查询取消按钮。
+- [x] P1 支持查询取消按钮。
+- [x] P1 操作日志显示实际执行的 SQL。
 - [ ] P1 查询结果显示 truncated 状态和 limit 说明。
 - [ ] P2 支持 EXPLAIN FORMAT=JSON。
 - [ ] P2 EXPLAIN 风险提示：全表扫描、未使用索引、大 rows 估计。
@@ -566,7 +567,7 @@ SQL 执行：
 
 ### 7.9 工程化与测试
 
-- [ ] P0 添加 CI：Go test、frontend build。
+- [x] P0 添加 CI：Go test、frontend build。
 - [ ] P0 添加基础 Go 单元测试。
 - [ ] P0 建立性能基线：启动、schema 展开、表格渲染、查询结果渲染。
 - [ ] P1 拆分 `frontend/src/App.vue`，降低单文件复杂度。
