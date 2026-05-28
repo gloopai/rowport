@@ -25,6 +25,7 @@ import {logLevelOptions, useOperationLogs} from './composables/useOperationLogs'
 import {useSchemaExplorer} from './composables/useSchemaExplorer'
 import {compactSql} from './composables/sqlUtils'
 import {useSqlConsole} from './composables/useSqlConsole'
+import {useTableContextMenu} from './composables/useTableContextMenu'
 import {useTableData} from './composables/useTableData'
 import {useWorkspaceTabs} from './composables/useWorkspaceTabs'
 
@@ -38,7 +39,6 @@ const selectedTable = ref('')
 const selectedObject = ref({profileId: '', type: 'table', database: '', table: ''})
 const busy = ref(false)
 const message = ref('')
-const contextMenu = ref({open: false, x: 0, y: 0, database: '', table: ''})
 const openSelectId = ref('')
 
 const suppressDatabaseWatch = ref(false)
@@ -50,8 +50,6 @@ let queryToolbarObserver = null
 const VIRTUAL_ROW_HEIGHT = 27
 const VIRTUAL_VISIBLE_ROWS = 80
 const VIRTUAL_OVERSCAN = 12
-const CONTEXT_MENU_WIDTH = 220
-const CONTEXT_MENU_MAX_HEIGHT = 420
 
 const {
   servicesPanelRef,
@@ -316,12 +314,6 @@ const {
   beginResize,
   resetPaneSize
 } = useLayoutResize()
-const contextMenuStyle = computed(() => ({
-  left: `${contextMenu.value.x}px`,
-  top: `${contextMenu.value.y}px`,
-  width: `${CONTEXT_MENU_WIDTH}px`,
-  maxHeight: `${Math.max(160, Math.min(CONTEXT_MENU_MAX_HEIGHT, window.innerHeight - 16))}px`
-}))
 const virtualDataRows = computed(() => virtualRows(tableData.value.rows || [], dataGridScrollTop.value))
 const dataTopSpacerHeight = computed(() => virtualDataRows.value.start * VIRTUAL_ROW_HEIGHT)
 const dataBottomSpacerHeight = computed(() => Math.max(0, ((tableData.value.rows || []).length - virtualDataRows.value.end) * VIRTUAL_ROW_HEIGHT))
@@ -392,6 +384,26 @@ const {
   tableMetadata,
   virtualRows,
   rowHeight: VIRTUAL_ROW_HEIGHT
+})
+const {
+  contextMenu,
+  contextMenuStyle,
+  openTableContextMenu,
+  closeContextMenu,
+  copyQualifiedTableName,
+  openContextTableData,
+  openContextTableStructure,
+  insertContextSqlTemplate,
+  insertContextDdlTemplate
+} = useTableContextMenu({
+  addLog,
+  copyText,
+  insertDdlTemplate,
+  insertSqlTemplate,
+  loadTableMetadata,
+  logContext,
+  selectTable,
+  selectTableObject
 })
 const databaseOptions = computed(() => [
   {label: 'Database', value: ''},
@@ -517,58 +529,6 @@ function resetGridScroll(kind) {
       dataTableViewRef.value?.scrollToTop()
     })
   }
-}
-
-function openTableContextMenu(profileId, database, table, event) {
-  const viewportWidth = window.innerWidth || 0
-  const viewportHeight = window.innerHeight || 0
-  const menuHeight = Math.min(CONTEXT_MENU_MAX_HEIGHT, viewportHeight - 16)
-  let x = event.clientX
-  let y = event.clientY
-  if (x + CONTEXT_MENU_WIDTH + 8 > viewportWidth) x = Math.max(8, event.clientX - CONTEXT_MENU_WIDTH)
-  if (y + menuHeight + 8 > viewportHeight) y = Math.max(8, viewportHeight - menuHeight - 8)
-  contextMenu.value = {open: true, x, y, profileId, database, table}
-  addLog('debug', 'Open table context menu', logContext({profileId, database, table}))
-}
-
-function closeContextMenu() {
-  contextMenu.value.open = false
-}
-
-function contextTableInfo() {
-  return {profileId: contextMenu.value.profileId, database: contextMenu.value.database, table: contextMenu.value.table}
-}
-
-function copyQualifiedTableName() {
-  const {database, table} = contextTableInfo()
-  copyText(`\`${database}\`.\`${table}\``, '表名')
-  closeContextMenu()
-}
-
-function openContextTableData() {
-  const {profileId, database, table} = contextTableInfo()
-  selectTable(table, database, profileId)
-  closeContextMenu()
-}
-
-function openContextTableStructure(type) {
-  const {profileId, database, table} = contextTableInfo()
-  selectTableObject(type, table, database, profileId)
-  closeContextMenu()
-}
-
-async function insertContextSqlTemplate(type) {
-  const {profileId, database, table} = contextTableInfo()
-  await loadTableMetadata(profileId, database, table)
-  insertSqlTemplate(type, database, table, profileId)
-  closeContextMenu()
-}
-
-async function insertContextDdlTemplate(type) {
-  const {profileId, database, table} = contextTableInfo()
-  await loadTableMetadata(profileId, database, table)
-  insertDdlTemplate(type, database, table, profileId)
-  closeContextMenu()
 }
 
 function chooseFilterColumn(value) {
