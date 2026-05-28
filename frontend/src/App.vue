@@ -1,6 +1,7 @@
 <script setup>
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import DatabaseExplorer from './components/DatabaseExplorer.vue'
+import DataTableView from './components/DataTableView.vue'
 import EditorTabs from './components/EditorTabs.vue'
 import MainToolbar from './components/MainToolbar.vue'
 import SqlEditorToolbar from './components/SqlEditorToolbar.vue'
@@ -102,7 +103,7 @@ const queryToolbarRef = ref(null)
 const querySelection = ref({start: 0, end: 0})
 const runningQueryId = ref('')
 const sqlResultPaneRef = ref(null)
-const dataGridRef = ref(null)
+const dataTableViewRef = ref(null)
 const dataGridScrollTop = ref(0)
 const tableData = ref({columns: [], primaryKeys: [], rows: [], total: 0, page: 1, pageSize: 50})
 const selectedRowIndex = ref(-1)
@@ -617,7 +618,7 @@ function resetGridScroll(kind) {
   if (kind === 'data') {
     dataGridScrollTop.value = 0
     nextTick(() => {
-      if (dataGridRef.value) dataGridRef.value.scrollTop = 0
+      dataTableViewRef.value?.scrollToTop()
     })
   }
 }
@@ -2306,101 +2307,52 @@ function demoTableData(page = 1, pageSize = 50) {
           <div class="floating-count">{{ currentTab?.objectType === 'ddl' ? 'DDL' : `${structureRows.length} items` }}</div>
         </div>
 
-        <div v-else-if="currentTab?.kind === 'data'" class="data-surface" @click="clearDataRowSelection">
-          <div class="filter-row" @click.stop>
-            <span>⌁ WHERE</span>
-            <input class="inline-filter" v-model="tableWhere" placeholder="e.g. id > 10" data-native-context>
-            <button :disabled="!selectedTable || !tableData.columns.length" @click="openFilterDialog">Filter</button>
-            <span>≡ ORDER BY</span>
-            <div class="custom-select" :class="{open: openSelectId === 'orderBy'}" @click.stop>
-              <button class="custom-select-button" @click="toggleCustomSelect('orderBy')">
-                <span>{{ optionLabel(orderByOptions, tableOrderBy, 'none') }}</span>
-                <span class="select-caret">⌄</span>
-              </button>
-              <div v-if="openSelectId === 'orderBy'" class="custom-select-menu">
-                <button
-                  v-for="option in orderByOptions"
-                  :key="option.value || 'none'"
-                  :class="{active: option.value === tableOrderBy}"
-                  @click="chooseTableOrderBy(option.value)"
-                >{{ option.label }}</button>
-              </div>
-            </div>
-            <div class="custom-select compact" :class="{open: openSelectId === 'orderDir', disabled: !tableOrderBy}" @click.stop>
-              <button class="custom-select-button" :disabled="!tableOrderBy" @click="toggleCustomSelect('orderDir')">
-                <span>{{ optionLabel(orderDirOptions, tableOrderDir, 'ASC') }}</span>
-                <span class="select-caret">⌄</span>
-              </button>
-              <div v-if="openSelectId === 'orderDir'" class="custom-select-menu">
-                <button
-                  v-for="option in orderDirOptions"
-                  :key="option.value"
-                  :class="{active: option.value === tableOrderDir}"
-                  @click="chooseTableOrderDir(option.value)"
-                >{{ option.label }}</button>
-              </div>
-            </div>
-            <button @click="applyTableFilter">Apply</button>
-            <button @click="clearTableFilter">Clear</button>
-            <button :disabled="!selectedTable" @click="openInsertRow">+ Row</button>
-            <button :disabled="!selectedTable" @click="openCsvImportPreview">Import CSV</button>
-            <template v-if="selectedRow">
-              <span class="selection-chip">已选 {{ selectedRowsCount }} 行</span>
-              <button class="icon-tool" title="编辑选中行" :disabled="!canEditSelectedRow" @click="editSelectedRow">✎</button>
-              <button class="icon-tool danger-tool" title="删除选中行" :disabled="!canDeleteSelectedRow" @click="deleteSelectedRow">⌫</button>
-              <button class="icon-tool" title="复制选中行" @click="copySelectedRow">⧉</button>
-            </template>
-            <button title="复制当前页" :disabled="!tableData.rows?.length" @click="copyVisibleRows">Copy</button>
-            <button title="导出当前页 CSV" :disabled="!tableData.rows?.length" @click="exportVisibleCsv">CSV</button>
-            <button title="导出当前页 JSON" :disabled="!tableData.rows?.length" @click="exportVisibleJson">JSON</button>
-            <div class="pager">
-              <button :disabled="tableData.page <= 1" @click="loadTablePage(tableData.page - 1)">‹</button>
-              <span>{{ tableData.page }} / {{ totalPages }}</span>
-              <button :disabled="tableData.page >= totalPages" @click="loadTablePage(tableData.page + 1)">›</button>
-            </div>
-          </div>
-
-          <div ref="dataGridRef" class="grid-wrap" @scroll="handleDataGridScroll">
-            <table v-if="tableData.columns.length" class="data-grid" @click.stop>
-              <thead>
-                <tr>
-                  <th class="row-num"></th>
-                  <th v-for="column in tableData.columns" :key="column.name" :style="{width: `${columnWidth(column.name)}px`, minWidth: `${columnWidth(column.name)}px`}">
-                    <span class="col-name" :style="{width: `${columnWidth(column.name)}px`}">{{ column.name }}</span>
-                    <span class="filter-mark">▽</span>
-                    <span class="column-resizer" @mousedown="beginColumnResize(column.name, $event)"></span>
-                  </th>
-                  <th class="actions-col">actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="dataTopSpacerHeight" class="virtual-spacer-row">
-                  <td :colspan="dataGridColspan" :style="{height: `${dataTopSpacerHeight}px`}"></td>
-                </tr>
-                <tr
-                  v-for="item in virtualDataRows.items"
-                  :key="item.index"
-                  :class="{'selected-row': isSelectedDataRow(item.index)}"
-                  @click="selectDataRow(item.index)"
-                  @dblclick="openEditRow(item.row)"
-                >
-                  <td class="row-num">{{ (tableData.page - 1) * tableData.pageSize + item.index + 1 }}</td>
-                  <td v-for="column in tableData.columns" :key="column.name" :style="{width: `${columnWidth(column.name)}px`, minWidth: `${columnWidth(column.name)}px`}">{{ item.row[column.name] ?? '<null>' }}</td>
-                  <td class="row-actions">
-                    <button :disabled="!canMutateRows" @click.stop="openEditRow(item.row)">Edit</button>
-                    <button :disabled="!canMutateRows" @click.stop="deleteRow(item.row)">Delete</button>
-                  </td>
-                </tr>
-                <tr v-if="dataBottomSpacerHeight" class="virtual-spacer-row">
-                  <td :colspan="dataGridColspan" :style="{height: `${dataBottomSpacerHeight}px`}"></td>
-                </tr>
-              </tbody>
-            </table>
-            <div v-else class="empty-state">Connect and select a table from Database Explorer.</div>
-          </div>
-
-          <div class="floating-count">{{ tableData.rows?.length || 0 }} rows · {{ tableData.total || 0 }} total</div>
-        </div>
+        <DataTableView
+          v-else-if="currentTab?.kind === 'data'"
+          ref="dataTableViewRef"
+          v-model:table-where="tableWhere"
+          :selected-table="selectedTable"
+          :table-data="tableData"
+          :open-select-id="openSelectId"
+          :order-by-options="orderByOptions"
+          :table-order-by="tableOrderBy"
+          :order-dir-options="orderDirOptions"
+          :table-order-dir="tableOrderDir"
+          :selected-row="selectedRow"
+          :selected-rows-count="selectedRowsCount"
+          :can-edit-selected-row="canEditSelectedRow"
+          :can-delete-selected-row="canDeleteSelectedRow"
+          :total-pages="totalPages"
+          :virtual-data-rows="virtualDataRows"
+          :data-top-spacer-height="dataTopSpacerHeight"
+          :data-bottom-spacer-height="dataBottomSpacerHeight"
+          :data-grid-colspan="dataGridColspan"
+          :can-mutate-rows="canMutateRows"
+          :option-label="optionLabel"
+          :column-width="columnWidth"
+          :is-selected-data-row="isSelectedDataRow"
+          @clear-selection="clearDataRowSelection"
+          @open-filter-dialog="openFilterDialog"
+          @toggle-select="toggleCustomSelect"
+          @choose-order-by="chooseTableOrderBy"
+          @choose-order-dir="chooseTableOrderDir"
+          @apply-filter="applyTableFilter"
+          @clear-filter="clearTableFilter"
+          @open-insert-row="openInsertRow"
+          @open-csv-import-preview="openCsvImportPreview"
+          @edit-selected-row="editSelectedRow"
+          @delete-selected-row="deleteSelectedRow"
+          @copy-selected-row="copySelectedRow"
+          @copy-visible-rows="copyVisibleRows"
+          @export-visible-csv="exportVisibleCsv"
+          @export-visible-json="exportVisibleJson"
+          @load-table-page="loadTablePage"
+          @scroll="handleDataGridScroll"
+          @begin-column-resize="beginColumnResize"
+          @select-data-row="selectDataRow"
+          @open-edit-row="openEditRow"
+          @delete-row="deleteRow"
+        />
 
         <div v-else class="empty-workspace">
           <span>Open a table, structure node, or SQL console from Database Explorer.</span>
@@ -2891,7 +2843,6 @@ function demoTableData(page = 1, pageSize = 50) {
 .ide-shell .statusbar,
 .ide-shell .custom-select,
 .ide-shell .custom-select-menu,
-.ide-shell .selection-chip,
 .ide-shell .floating-count {
   -webkit-user-select: none;
   user-select: none;
@@ -2979,7 +2930,6 @@ function demoTableData(page = 1, pageSize = 50) {
 .pager,
 .input-row,
 .query-actions,
-.row-actions,
 .statusbar {
   display: flex;
   align-items: center;
@@ -3015,45 +2965,6 @@ button {
 
 button:hover:not(:disabled) {
   background: #373a3f;
-}
-
-.selection-chip {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 7px;
-  color: #b9c7dc;
-  background: #303641;
-  border: 1px solid #465066;
-  border-radius: 4px;
-}
-
-.icon-tool {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  min-width: 26px;
-  padding: 0;
-  color: #cfd7e6;
-  background: #303338;
-  border-color: var(--line);
-}
-
-.icon-tool:hover:not(:disabled) {
-  color: #ffffff;
-  background: #3c4656;
-}
-
-.danger-tool {
-  color: #ffb4aa;
-  background: rgba(244, 87, 82, 0.12);
-  border-color: rgba(244, 87, 82, 0.34);
-}
-
-.danger-tool:hover:not(:disabled) {
-  color: #ffffff;
-  background: rgba(244, 87, 82, 0.28);
 }
 
 button:disabled {
@@ -3296,14 +3207,6 @@ button:disabled {
   white-space: pre;
 }
 
-.inline-filter {
-  width: min(260px, 24vw);
-  min-height: 24px;
-  padding: 3px 8px;
-  background: #1f2023;
-  border: 1px solid var(--line);
-}
-
 .pager {
   margin-left: auto;
 }
@@ -3349,30 +3252,8 @@ button:disabled {
   background: #2b2d30;
 }
 
-.column-resizer {
-  position: absolute;
-  top: 0;
-  right: -3px;
-  width: 6px;
-  height: 100%;
-  cursor: col-resize;
-}
-
-.column-resizer:hover {
-  background: #4d8df7;
-}
-
 .data-grid tbody tr:hover td {
   background: #262a30;
-}
-
-.data-grid tbody tr.selected-row td {
-  color: #eef3ff;
-  background: #28364b;
-}
-
-.data-grid tbody tr.selected-row:hover td {
-  background: #30415b;
 }
 
 .data-grid .virtual-spacer-row td {
@@ -3395,25 +3276,6 @@ button:disabled {
   color: #727884 !important;
   text-align: right !important;
   background: #24262a;
-}
-
-.col-name {
-  color: #d0d4dc;
-}
-
-.filter-mark {
-  float: right;
-  color: #858b95;
-}
-
-.actions-col {
-  min-width: 130px !important;
-}
-
-.row-actions button {
-  min-height: 21px;
-  padding: 0 6px;
-  color: #9dbbff;
 }
 
 .empty-state {
