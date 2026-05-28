@@ -24,6 +24,7 @@ import {useLayoutResize} from './composables/useLayoutResize'
 import {logLevelOptions, useOperationLogs} from './composables/useOperationLogs'
 import {useSchemaExplorer} from './composables/useSchemaExplorer'
 import {compactSql} from './composables/sqlUtils'
+import {useSelectControls} from './composables/useSelectControls'
 import {useSqlConsole} from './composables/useSqlConsole'
 import {useTableContextMenu} from './composables/useTableContextMenu'
 import {useTableData} from './composables/useTableData'
@@ -39,7 +40,6 @@ const selectedTable = ref('')
 const selectedObject = ref({profileId: '', type: 'table', database: '', table: ''})
 const busy = ref(false)
 const message = ref('')
-const openSelectId = ref('')
 
 const suppressDatabaseWatch = ref(false)
 const confirmDialogOpen = ref(false)
@@ -405,6 +405,28 @@ const {
   selectTable,
   selectTableObject
 })
+const {
+  openSelectId,
+  toggleCustomSelect,
+  closeCustomSelect,
+  chooseDatabase,
+  choosePageSize,
+  chooseHistory,
+  chooseTableOrderBy,
+  chooseTableOrderDir,
+  chooseFilterColumn,
+  chooseFilterOperator,
+  chooseLogLevel
+} = useSelectControls({
+  chooseFilterColumnValue,
+  chooseFilterOperatorValue,
+  chooseQueryHistory,
+  chooseTableOrderByValue,
+  chooseTableOrderDirValue,
+  chooseTablePageSize,
+  logLevelFilter,
+  selectedDatabase
+})
 const databaseOptions = computed(() => [
   {label: 'Database', value: ''},
   ...activeConnection.value.databases.map((database) => ({label: database.name, value: database.name}))
@@ -531,14 +553,6 @@ function resetGridScroll(kind) {
   }
 }
 
-function chooseFilterColumn(value) {
-  chooseFilterColumnValue(value, closeCustomSelect)
-}
-
-function chooseFilterOperator(value) {
-  chooseFilterOperatorValue(value, closeCustomSelect)
-}
-
 async function copyText(text, label) {
   try {
     await navigator.clipboard.writeText(text)
@@ -556,40 +570,6 @@ function downloadText(filename, content, type) {
   link.download = filename
   link.click()
   URL.revokeObjectURL(url)
-}
-
-function toggleCustomSelect(id) {
-  openSelectId.value = openSelectId.value === id ? '' : id
-}
-
-function closeCustomSelect() {
-  openSelectId.value = ''
-}
-
-function chooseDatabase(value) {
-  selectedDatabase.value = value
-  closeCustomSelect()
-}
-
-function choosePageSize(value) {
-  chooseTablePageSize(value, closeCustomSelect)
-}
-
-function chooseHistory(value) {
-  chooseQueryHistory(value, closeCustomSelect)
-}
-
-function chooseTableOrderBy(value) {
-  chooseTableOrderByValue(value, closeCustomSelect)
-}
-
-function chooseTableOrderDir(value) {
-  chooseTableOrderDirValue(value, closeCustomSelect)
-}
-
-function chooseLogLevel(value) {
-  logLevelFilter.value = value
-  closeCustomSelect()
 }
 
 function closeSurfaceOverlays() {
