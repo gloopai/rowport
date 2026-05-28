@@ -2623,14 +2623,6 @@ function demoTableData(page = 1, pageSize = 50) {
             <div class="toolbar-fill"></div>
             <div class="toolbar-group history-group">
               <span class="toolbar-label">History</span>
-              <input
-                v-model="historySearch"
-                class="history-search"
-                placeholder="Search history"
-                data-native-context
-                @focus="openSelectId = 'history'"
-                @input="openSelectId = 'history'"
-              >
               <button
                 class="toolbar-action favorite-action"
                 :class="{saved: savedHistoryItem?.favorite}"
@@ -2645,6 +2637,14 @@ function demoTableData(page = 1, pageSize = 50) {
                   <span class="select-caret">⌄</span>
                 </button>
                 <div v-if="openSelectId === 'history'" class="custom-select-menu">
+                  <input
+                    v-model="historySearch"
+                    class="history-search"
+                    placeholder="Search history"
+                    data-native-context
+                    @click.stop
+                    @keydown.stop
+                  >
                   <div v-if="historyOptions.length <= 1" class="select-empty">{{ historySearch ? 'No matching history' : 'No history yet' }}</div>
                   <button
                     v-for="option in historyOptions"
@@ -4091,7 +4091,7 @@ button:disabled {
 }
 
 .history-group {
-  max-width: min(520px, 42vw);
+  max-width: min(340px, 30vw);
 }
 
 .history-group .custom-select {
@@ -4100,9 +4100,10 @@ button:disabled {
 }
 
 .history-search {
-  width: 96px;
+  width: 100%;
   height: 24px;
   min-height: 24px;
+  margin-bottom: 4px;
   padding: 0 8px;
   color: #cbd1db;
   background: #202226;
