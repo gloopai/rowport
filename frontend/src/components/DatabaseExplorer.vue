@@ -1,4 +1,6 @@
 <script setup>
+import ExplorerProfileNode from './ExplorerProfileNode.vue'
+
 defineProps({
   profiles: {
     type: Array,
@@ -107,148 +109,32 @@ const emit = defineEmits([
     </div>
 
     <div class="tree-scroll">
-      <div v-for="profile in profiles" :key="profile.id" class="tree-group">
-        <button
-          class="tree-row server-row"
-          :class="{selected: profile.id === selectedProfileId, connected: isProfileConnected(profile)}"
-          @click="emit('selectProfile', profile)"
-          @dblclick="emit('connect')"
-        >
-          <span class="tree-expander" @click.stop="emit('toggleExpanded', 'server', profile.id)">{{ isExpanded('server', profile.id) ? '⌄' : '›' }}</span>
-          <span class="tree-icon icon-server"></span>
-          <span class="tree-label">{{ profile.name }}</span>
-          <span v-if="isProfileConnected(profile)" class="status-dot"></span>
-          <span class="tree-badge">{{ profile.ssh.enabled ? 'SSH' : profile.host }}</span>
-        </button>
-
-        <div v-if="isExpanded('server', profile.id)" class="tree-children">
-          <template v-if="isProfileConnected(profile)">
-            <template v-for="database in getConnectionState(profile.id).databases" :key="database.name">
-              <button
-                class="tree-row database-node"
-                :class="{selected: profile.id === activeProfileId && database.name === selectedDatabase && !selectedTable, 'active-parent': profile.id === activeProfileId && database.name === selectedDatabase && selectedTable}"
-                @click="emit('selectDatabase', profile.id, database.name)"
-              >
-                <span class="tree-expander" @click.stop="emit('toggleDatabase', profile.id, database.name)">{{ isExpanded('database', profile.id, database.name) ? '⌄' : '›' }}</span>
-                <span class="tree-icon icon-database"></span>
-                <span class="tree-label">{{ database.name }}</span>
-              </button>
-
-              <div v-if="isExpanded('database', profile.id, database.name)" class="tree-children nested">
-                <button class="tree-row muted-row" @click="emit('toggleTables', profile.id, database.name)">
-                  <span class="tree-expander">{{ isExpanded('tables', profile.id, database.name) ? '⌄' : '›' }}</span>
-                  <span class="tree-icon icon-folder"></span>
-                  <span class="tree-label">tables</span>
-                  <span class="tree-badge">{{ tableCount(profile.id, database.name) }}</span>
-                </button>
-                <template v-if="isExpanded('tables', profile.id, database.name)">
-                  <div v-for="table in tableList(profile.id, database.name)" :key="table.name">
-                    <button
-                      class="tree-row table-node"
-                      :class="{
-                        selected: currentTab?.profileId === profile.id && currentTab?.kind === 'data' && currentTab.table === table.name && currentTab.database === database.name,
-                        'active-parent': currentTab?.profileId === profile.id && currentTab?.kind === 'structure' && currentTab.table === table.name && currentTab.database === database.name
-                      }"
-                      @click="emit('selectTable', table, database.name, profile.id)"
-                      @contextmenu.prevent="emit('openTableContextMenu', profile.id, database.name, table.name, $event)"
-                    >
-                      <span class="tree-expander" @click.stop="emit('toggleExpanded', 'table', profile.id, database.name, table.name)">{{ isExpanded('table', profile.id, database.name, table.name) ? '⌄' : '›' }}</span>
-                      <span class="tree-icon icon-table"></span>
-                      <span class="tree-label">{{ table.name }}</span>
-                    </button>
-
-                    <div v-if="isExpanded('table', profile.id, database.name, table.name)" class="tree-children table-objects">
-                      <button
-                        class="tree-row object-folder"
-                        :class="{selected: currentTab?.profileId === profile.id && currentTab?.kind === 'structure' && currentTab.objectType === 'columns' && currentTab.table === table.name && currentTab.database === database.name}"
-                        @click="emit('selectTableObject', 'columns', table.name, database.name, profile.id)"
-                      >
-                        <span class="tree-expander" @click.stop="emit('toggleExpanded', 'columns', profile.id, database.name, table.name)">{{ isExpanded('columns', profile.id, database.name, table.name) ? '⌄' : '›' }}</span>
-                        <span class="tree-icon icon-folder"></span>
-                        <span class="tree-label">columns</span>
-                        <span class="tree-badge">{{ (tableMetadata[metadataKey(profile.id, database.name, table.name)]?.columns || []).length }}</span>
-                      </button>
-                      <div v-if="isExpanded('columns', profile.id, database.name, table.name)" class="tree-children leaf-list">
-                        <button
-                          v-for="column in (tableMetadata[metadataKey(profile.id, database.name, table.name)]?.columns || [])"
-                          :key="column.name"
-                          class="tree-row leaf-row"
-                          @click="emit('selectTableObject', 'columns', table.name, database.name, profile.id)"
-                        >
-                          <span class="tree-icon icon-column" :class="{primary: column.key === 'PRI'}"></span>
-                          <span class="tree-label">{{ column.name }}</span>
-                          <span class="tree-detail">{{ column.type }}</span>
-                        </button>
-                      </div>
-
-                      <button
-                        class="tree-row object-folder"
-                        :class="{selected: currentTab?.profileId === profile.id && currentTab?.kind === 'structure' && currentTab.objectType === 'keys' && currentTab.table === table.name && currentTab.database === database.name}"
-                        @click="emit('selectTableObject', 'keys', table.name, database.name, profile.id)"
-                      >
-                        <span class="tree-expander" @click.stop="emit('toggleExpanded', 'keys', profile.id, database.name, table.name)">{{ isExpanded('keys', profile.id, database.name, table.name) ? '⌄' : '›' }}</span>
-                        <span class="tree-icon icon-folder"></span>
-                        <span class="tree-label">keys</span>
-                        <span class="tree-badge">{{ (tableMetadata[metadataKey(profile.id, database.name, table.name)]?.columns || []).filter((column) => column.key === 'PRI').length }}</span>
-                      </button>
-                      <div v-if="isExpanded('keys', profile.id, database.name, table.name)" class="tree-children leaf-list">
-                        <button
-                          v-for="column in (tableMetadata[metadataKey(profile.id, database.name, table.name)]?.columns || []).filter((item) => item.key === 'PRI')"
-                          :key="column.name"
-                          class="tree-row leaf-row"
-                          @click="emit('selectTableObject', 'keys', table.name, database.name, profile.id)"
-                        >
-                          <span class="tree-icon icon-key"></span>
-                          <span class="tree-label">PRIMARY</span>
-                          <span class="tree-detail">{{ column.name }}</span>
-                        </button>
-                      </div>
-
-                      <button
-                        class="tree-row object-folder"
-                        :class="{selected: currentTab?.profileId === profile.id && currentTab?.kind === 'structure' && currentTab.objectType === 'indexes' && currentTab.table === table.name && currentTab.database === database.name}"
-                        @click="emit('selectTableObject', 'indexes', table.name, database.name, profile.id)"
-                      >
-                        <span class="tree-expander" @click.stop="emit('toggleExpanded', 'indexes', profile.id, database.name, table.name)">{{ isExpanded('indexes', profile.id, database.name, table.name) ? '⌄' : '›' }}</span>
-                        <span class="tree-icon icon-folder"></span>
-                        <span class="tree-label">indexes</span>
-                        <span class="tree-badge">{{ [...new Set((tableMetadata[metadataKey(profile.id, database.name, table.name)]?.indexes || []).map((item) => item.indexName))].length }}</span>
-                      </button>
-                      <div v-if="isExpanded('indexes', profile.id, database.name, table.name)" class="tree-children leaf-list">
-                        <button
-                          v-for="index in (tableMetadata[metadataKey(profile.id, database.name, table.name)]?.indexes || [])"
-                          :key="`${index.indexName}.${index.seqInIndex}`"
-                          class="tree-row leaf-row"
-                          @click="emit('selectTableObject', 'indexes', table.name, database.name, profile.id)"
-                        >
-                          <span class="tree-icon icon-index"></span>
-                          <span class="tree-label">{{ index.indexName }}</span>
-                          <span class="tree-detail">{{ index.columnName }}</span>
-                        </button>
-                      </div>
-
-                      <button
-                        class="tree-row object-folder"
-                        :class="{selected: currentTab?.profileId === profile.id && currentTab?.kind === 'structure' && currentTab.objectType === 'ddl' && currentTab.table === table.name && currentTab.database === database.name}"
-                        @click="emit('selectTableObject', 'ddl', table.name, database.name, profile.id)"
-                      >
-                        <span class="tree-spacer"></span>
-                        <span class="tree-icon icon-index"></span>
-                        <span class="tree-label">DDL</span>
-                      </button>
-                    </div>
-                  </div>
-                </template>
-              </div>
-            </template>
-          </template>
-          <div v-else class="tree-row muted-row server-empty">
-            <span class="tree-spacer"></span>
-            <span class="tree-icon icon-disconnected"></span>
-            <span class="tree-label">Not connected</span>
-          </div>
-        </div>
-      </div>
+      <ExplorerProfileNode
+        v-for="profile in profiles"
+        :key="profile.id"
+        :profile="profile"
+        :selected-profile-id="selectedProfileId"
+        :active-profile-id="activeProfileId"
+        :selected-database="selectedDatabase"
+        :selected-table="selectedTable"
+        :current-tab="currentTab"
+        :table-metadata="tableMetadata"
+        :is-profile-connected="isProfileConnected"
+        :is-expanded="isExpanded"
+        :get-connection-state="getConnectionState"
+        :table-count="tableCount"
+        :table-list="tableList"
+        :metadata-key="metadataKey"
+        @connect="emit('connect')"
+        @toggle-expanded="(...args) => emit('toggleExpanded', ...args)"
+        @select-profile="(...args) => emit('selectProfile', ...args)"
+        @select-database="(...args) => emit('selectDatabase', ...args)"
+        @toggle-database="(...args) => emit('toggleDatabase', ...args)"
+        @toggle-tables="(...args) => emit('toggleTables', ...args)"
+        @select-table="(...args) => emit('selectTable', ...args)"
+        @open-table-context-menu="(...args) => emit('openTableContextMenu', ...args)"
+        @select-table-object="(...args) => emit('selectTableObject', ...args)"
+      />
     </div>
   </aside>
 </template>
