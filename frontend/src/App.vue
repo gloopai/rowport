@@ -13,15 +13,10 @@ import SqlTextEditor from './components/SqlTextEditor.vue'
 import StructureView from './components/StructureView.vue'
 import {useConnections} from './composables/useConnections'
 import {useLayoutResize} from './composables/useLayoutResize'
+import {useSchemaExplorer} from './composables/useSchemaExplorer'
 import {compactSql} from './composables/sqlUtils'
 import {useSqlConsole} from './composables/useSqlConsole'
 import {useTableData} from './composables/useTableData'
-import {
-  ListColumns,
-  ListIndexes,
-  ListTables,
-  ShowCreateTable,
-} from '../wailsjs/go/main/App'
 
 const appStartedAt = performance.now()
 
@@ -46,9 +41,6 @@ const suppressDatabaseWatch = ref(false)
 const confirmDialogOpen = ref(false)
 const confirmDialog = ref({title: '', body: '', action: '确认'})
 let confirmResolve = null
-const expandedTree = ref(new Set())
-const tableMetadata = ref({})
-const tableDDLs = ref({})
 const queryToolbarHeight = ref(40)
 let queryToolbarObserver = null
 const VIRTUAL_ROW_HEIGHT = 27
@@ -135,6 +127,61 @@ const {
   addLog
 })
 const {
+  tableMetadata,
+  structureTitle,
+  structureColumns,
+  structureRows,
+  selectedDDL,
+  metadataKey,
+  invalidateSchemaCache,
+  isExpanded,
+  setExpanded,
+  toggleExpanded,
+  refreshTables,
+  toggleDatabase,
+  toggleTables,
+  selectDatabase,
+  selectTable,
+  selectTableObject,
+  handleSelectedDatabaseChange,
+  handleSelectedTableChange,
+  loadTableMetadata,
+  loadTableDDL
+} = useSchemaExplorer({
+  activeProfileId: () => activeProfileId.value,
+  activeProfileName: (...args) => activeProfileName(...args),
+  addLog,
+  currentTab,
+  demoTableData,
+  elapsedSince,
+  errorMessage,
+  getConnectionState: (...args) => getConnectionState(...args),
+  hasRuntime,
+  loadTablePage,
+  logContext,
+  openDataTab,
+  openStructureTab,
+  perfStart,
+  resetGridScroll,
+  selectedDatabase,
+  selectedObjectRef: selectedObject,
+  selectedProfileId: {
+    get value() {
+      return selectedProfileId.value
+    },
+    set value(value) {
+      selectedProfileId.value = value
+    }
+  },
+  selectedRowIndex,
+  selectedTable,
+  setMessage,
+  suppressDatabaseWatch,
+  syncActiveConnectionState: (...args) => syncActiveConnectionState(...args),
+  tableData,
+  updateConnectionState: (...args) => updateConnectionState(...args)
+})
+const {
   profiles,
   selectedProfileId,
   profileDialogOpen,
@@ -206,7 +253,6 @@ const contextMenuStyle = computed(() => ({
   width: `${CONTEXT_MENU_WIDTH}px`,
   maxHeight: `${Math.max(160, Math.min(CONTEXT_MENU_MAX_HEIGHT, window.innerHeight - 16))}px`
 }))
-const selectedMetadata = computed(() => tableMetadata.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || {columns: [], indexes: []})
 const virtualDataRows = computed(() => virtualRows(tableData.value.rows || [], dataGridScrollTop.value))
 const dataTopSpacerHeight = computed(() => virtualDataRows.value.start * VIRTUAL_ROW_HEIGHT)
 const dataBottomSpacerHeight = computed(() => Math.max(0, ((tableData.value.rows || []).length - virtualDataRows.value.end) * VIRTUAL_ROW_HEIGHT))
@@ -278,51 +324,6 @@ const {
   virtualRows,
   rowHeight: VIRTUAL_ROW_HEIGHT
 })
-const structureTitle = computed(() => {
-  if (!selectedObject.value.table) return 'Structure'
-  if (selectedObject.value.type === 'columns') return `${selectedObject.value.table} / columns`
-  if (selectedObject.value.type === 'keys') return `${selectedObject.value.table} / keys`
-  if (selectedObject.value.type === 'indexes') return `${selectedObject.value.table} / indexes`
-  if (selectedObject.value.type === 'ddl') return `${selectedObject.value.table} / DDL`
-  return `${selectedObject.value.table} / structure`
-})
-const structureColumns = computed(() => {
-  if (selectedObject.value.type === 'indexes') return ['index', 'column', 'unique', 'seq', 'type', 'cardinality', 'sub_part', 'nullable']
-  if (selectedObject.value.type === 'keys') return ['key', 'column', 'type']
-  return ['column', 'type', 'nullable', 'key', 'default', 'extra', 'comment']
-})
-const structureRows = computed(() => {
-  if (selectedObject.value.type === 'indexes') {
-    return selectedMetadata.value.indexes.map((item) => [
-      item.indexName,
-      item.columnName,
-      item.nonUnique ? 'NO' : 'YES',
-      item.seqInIndex,
-      item.indexType,
-      item.cardinality ?? '',
-      item.subPart ?? '',
-      item.nullable
-    ])
-  }
-  if (selectedObject.value.type === 'keys') {
-    const primaryColumns = selectedMetadata.value.columns.filter((column) => column.key === 'PRI')
-    const uniqueIndexes = selectedMetadata.value.indexes.filter((item) => !item.nonUnique && item.indexName !== 'PRIMARY')
-    return [
-      ...primaryColumns.map((column) => ['PRIMARY', column.name, column.type]),
-      ...uniqueIndexes.map((item) => [item.indexName, item.columnName, item.indexType])
-    ]
-  }
-  return selectedMetadata.value.columns.map((column) => [
-    column.name,
-    column.type,
-    column.nullable,
-    column.key,
-    column.default ?? '',
-    column.extra,
-    column.comment
-  ])
-})
-const selectedDDL = computed(() => tableDDLs.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || '')
 const latestLog = computed(() => operationLogs.value[operationLogs.value.length - 1])
 const databaseOptions = computed(() => [
   {label: 'Database', value: ''},
@@ -407,143 +408,12 @@ function syncQueryToolbarHeight() {
 }
 
 watch(selectedDatabase, async (database) => {
-  if (suppressDatabaseWatch.value) return
-  selectedTable.value = ''
-  selectedObject.value = {profileId: activeProfileId.value, type: 'database', database, table: ''}
-  resetTableView()
-  if (database && getConnectionState(activeProfileId.value).status.connected) {
-    await refreshTables(activeProfileId.value, database)
-  }
+  await handleSelectedDatabaseChange(database, resetTableView)
 })
 
 watch(selectedTable, async (table) => {
-  if (table) {
-    resetGridScroll('data')
-    await loadTableMetadata(activeProfileId.value, selectedDatabase.value, table)
-    if (currentTab.value?.kind === 'data') {
-      selectedObject.value = {profileId: activeProfileId.value, type: 'table', database: selectedDatabase.value, table}
-      await loadTablePage(1)
-    }
-  }
+  await handleSelectedTableChange(table)
 })
-
-function metadataKey(profileId, database, table) {
-  return `${profileId || activeProfileId.value}.${database}.${table}`
-}
-
-function clearTableMetadataCache(profileId, database, table = '') {
-  if (!profileId || !database) return
-  const exactKey = table ? metadataKey(profileId, database, table) : ''
-  const keyPrefix = `${profileId}.${database}.`
-  tableMetadata.value = Object.fromEntries(
-    Object.entries(tableMetadata.value).filter(([key]) => table ? key !== exactKey : !key.startsWith(keyPrefix))
-  )
-  tableDDLs.value = Object.fromEntries(
-    Object.entries(tableDDLs.value).filter(([key]) => table ? key !== exactKey : !key.startsWith(keyPrefix))
-  )
-}
-
-function clearTableListCache(profileId, database) {
-  if (!profileId || !database) return
-  const nextCache = {...getConnectionState(profileId).tableCache}
-  delete nextCache[database]
-  updateConnectionState(profileId, {tableCache: nextCache})
-}
-
-function invalidateSchemaCache(profileId, database, table = '', options = {}) {
-  clearTableMetadataCache(profileId, database, table)
-  if (options.tableList) clearTableListCache(profileId, database)
-}
-
-function treeKey(...parts) {
-  return parts.join('/')
-}
-
-function isExpanded(...parts) {
-  return expandedTree.value.has(treeKey(...parts))
-}
-
-function setExpanded(expanded, ...parts) {
-  const next = new Set(expandedTree.value)
-  const key = treeKey(...parts)
-  if (expanded) {
-    next.add(key)
-  } else {
-    next.delete(key)
-  }
-  expandedTree.value = next
-}
-
-function toggleExpanded(...parts) {
-  setExpanded(!isExpanded(...parts), ...parts)
-}
-
-async function toggleDatabase(profileId, database) {
-  const willExpand = !isExpanded('database', profileId, database)
-  setExpanded(willExpand, 'database', profileId, database)
-  addLog('debug', willExpand ? 'Expand database node' : 'Collapse database node', logContext({profile: activeProfileName(profileId), database}))
-  if (willExpand) {
-    await refreshTables(profileId, database)
-  }
-}
-
-async function toggleTables(profileId, database) {
-  const willExpand = !isExpanded('tables', profileId, database)
-  setExpanded(willExpand, 'tables', profileId, database)
-  addLog('debug', willExpand ? 'Expand tables node' : 'Collapse tables node', logContext({profile: activeProfileName(profileId), database}))
-  if (willExpand) {
-    await refreshTables(profileId, database)
-  }
-}
-
-async function selectDatabase(profileId, database) {
-  selectedProfileId.value = profileId
-  syncActiveConnectionState(profileId)
-  selectedDatabase.value = database
-  selectedTable.value = ''
-  addLog('info', 'Select database', logContext({profile: activeProfileName(profileId), database}))
-  setExpanded(true, 'database', profileId, database)
-  await refreshTables(profileId, database)
-}
-
-async function selectTable(table, database = selectedDatabase.value, profileId = activeProfileId.value) {
-  selectedProfileId.value = profileId
-  syncActiveConnectionState(profileId)
-  if (database && selectedDatabase.value !== database) {
-    suppressDatabaseWatch.value = true
-    selectedDatabase.value = database
-    await nextTick()
-    suppressDatabaseWatch.value = false
-  }
-  selectedTable.value = table.name || table
-  selectedRowIndex.value = -1
-  addLog('info', 'Select table', logContext({profile: activeProfileName(profileId), database, table: selectedTable.value}))
-  setExpanded(true, 'database', profileId, database)
-  setExpanded(true, 'tables', profileId, database)
-  await loadTableMetadata(profileId, database, selectedTable.value)
-  openDataTab(profileId, database, selectedTable.value)
-}
-
-async function selectTableObject(type, tableName, database = selectedDatabase.value, profileId = activeProfileId.value) {
-  selectedProfileId.value = profileId
-  syncActiveConnectionState(profileId)
-  if (database && selectedDatabase.value !== database) {
-    suppressDatabaseWatch.value = true
-    selectedDatabase.value = database
-    await nextTick()
-    suppressDatabaseWatch.value = false
-  }
-  selectedTable.value = tableName
-  selectedRowIndex.value = -1
-  addLog('info', 'Select table object', logContext({profile: activeProfileName(profileId), database, table: tableName, type}))
-  setExpanded(true, 'database', profileId, database)
-  setExpanded(true, 'tables', profileId, database)
-  setExpanded(true, 'table', profileId, database, tableName)
-  setExpanded(true, type, profileId, database, tableName)
-  await loadTableMetadata(profileId, database, tableName)
-  if (type === 'ddl') await loadTableDDL(profileId, database, tableName)
-  openStructureTab(type, profileId, database, tableName)
-}
 
 function tabTitle(tab) {
   const profile = profileById(tab.profileId)
@@ -797,79 +667,6 @@ function closeTab(tabId, event) {
     activateTab(nextTab.id)
   } else {
     activeTabId.value = ''
-  }
-}
-
-async function loadTableMetadata(profileId, database, table) {
-  if (!database || !table) return
-  const key = metadataKey(profileId, database, table)
-  if (tableMetadata.value[key]) return
-  const startedAt = perfStart()
-  if (!hasRuntime()) {
-    tableMetadata.value = {
-      ...tableMetadata.value,
-      [key]: {
-        columns: demoTableData().columns,
-        indexes: [
-          {indexName: 'PRIMARY', columnName: 'id', nonUnique: false, seqInIndex: 1, indexType: 'BTREE', cardinality: 2},
-          {indexName: 'idx_users_email', columnName: 'email', nonUnique: true, seqInIndex: 1, indexType: 'BTREE', cardinality: 2}
-        ]
-      }
-    }
-    addLog('debug', 'Preview table metadata loaded', logContext({profileId, database, table, elapsedMs: elapsedSince(startedAt)}))
-    return
-  }
-  const [columns, indexes] = await Promise.all([
-    ListColumns(profileId, database, table),
-    ListIndexes(profileId, database, table)
-  ])
-  tableMetadata.value = {
-    ...tableMetadata.value,
-    [key]: {columns, indexes}
-  }
-  addLog('success', 'Table metadata loaded', logContext({profileId, database, table, columns: columns.length, indexes: indexes.length, elapsedMs: elapsedSince(startedAt)}))
-}
-
-async function loadTableDDL(profileId, database, table) {
-  if (!database || !table) return
-  const key = metadataKey(profileId, database, table)
-  if (tableDDLs.value[key]) return
-  const startedAt = perfStart()
-  if (!hasRuntime()) {
-    tableDDLs.value = {
-      ...tableDDLs.value,
-      [key]: `CREATE TABLE \`${table}\` (\n  \`id\` bigint NOT NULL AUTO_INCREMENT,\n  \`name\` varchar(120) DEFAULT NULL,\n  PRIMARY KEY (\`id\`)\n) ENGINE=InnoDB;`
-    }
-    addLog('debug', 'Preview DDL loaded', logContext({profileId, database, table, elapsedMs: elapsedSince(startedAt)}))
-    return
-  }
-  try {
-    const ddl = await ShowCreateTable(profileId, database, table)
-    tableDDLs.value = {...tableDDLs.value, [key]: ddl}
-    addLog('success', 'DDL loaded', logContext({database, table, elapsedMs: elapsedSince(startedAt)}))
-  } catch (error) {
-    setMessage(errorMessage(error), 'error', logContext({operation: 'showCreateTable', database, table}))
-  }
-}
-
-async function refreshTables(profileId = activeProfileId.value, database = selectedDatabase.value, force = false) {
-  if (!database) return
-  const state = getConnectionState(profileId)
-  if (!force && state.tableCache[database]) return
-  if (!hasRuntime()) return
-  const startedAt = perfStart()
-  if (force) {
-    invalidateSchemaCache(profileId, database, '', {tableList: true})
-  }
-  addLog('info', force ? 'Refresh tables' : 'Load tables', logContext({profileId, database}))
-  try {
-    const tables = await ListTables(profileId, database)
-    updateConnectionState(profileId, {
-      tableCache: {...getConnectionState(profileId).tableCache, [database]: tables}
-    })
-    addLog('success', 'Tables loaded', logContext({profileId, database, tables: tables.length, elapsedMs: elapsedSince(startedAt)}))
-  } catch (error) {
-    setMessage(errorMessage(error), 'error', logContext({operation: 'refreshTables', database}))
   }
 }
 
