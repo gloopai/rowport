@@ -118,8 +118,8 @@ const emit = defineEmits([
 .tool-panel-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px;
+  gap: 6px;
+  padding: 12px;
   border-top: 1px solid var(--line);
 }
 
@@ -131,8 +131,7 @@ const emit = defineEmits([
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 24px;
-  padding: 0 4px;
+  min-height: 18px;
   color: #7f8794;
   font-size: 11px;
   font-weight: 700;
@@ -144,12 +143,17 @@ const emit = defineEmits([
 .history-panel-list button {
   display: block;
   width: 100%;
-  min-height: 26px;
-  padding: 0 8px;
+  min-height: 28px;
+  padding: 0 9px;
   color: #cbd1db;
+  font: inherit;
+  line-height: 1;
   text-align: left;
   background: #2b2e34;
-  border-color: #3a3e45;
+  border: 1px solid #3a3e45;
+  border-radius: 4px;
+  box-shadow: none;
+  appearance: none;
 }
 
 .tool-panel-button:hover:not(:disabled),
@@ -157,17 +161,19 @@ const emit = defineEmits([
 .history-panel-list button:hover:not(:disabled) {
   color: #ffffff;
   background: #343840;
+  border-color: #4a505a;
 }
 
 .history-panel-list button.active {
   color: #ffffff;
   background: #41506a;
+  border-color: #52647f;
 }
 
 .tool-panel-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  gap: 6px;
 }
 
 .history-panel-section {
@@ -195,25 +201,37 @@ const emit = defineEmits([
 
 .history-search {
   width: 100%;
-  height: 24px;
-  min-height: 24px;
-  margin-bottom: 4px;
+  height: 28px;
+  min-height: 28px;
   padding: 0 8px;
   color: #cbd1db;
+  font: inherit;
   background: #202226;
   border: 1px solid #3a3e45;
   border-radius: 4px;
+  outline: none;
+  box-shadow: none;
+}
+
+.history-search:focus {
+  border-color: #52647f;
+  background: #22252b;
 }
 
 .favorite-action {
   width: 28px;
   min-width: 28px;
-  min-height: 24px;
+  min-height: 26px;
   padding: 0;
   color: #aeb6c2;
-  background: transparent;
-  border-color: #3a3e45;
+  font: inherit;
   font-size: 14px;
+  text-align: center;
+  background: #25282e;
+  border: 1px solid #3a3e45;
+  border-radius: 4px;
+  box-shadow: none;
+  appearance: none;
 }
 
 .favorite-action:hover:not(:disabled) {
@@ -233,12 +251,16 @@ const emit = defineEmits([
 
 .panel-link-button {
   min-height: 22px;
-  padding: 0 6px;
+  padding: 0;
   color: #9fb8e8;
+  font: inherit;
   font-size: 11px;
+  font-weight: 600;
   text-transform: none;
   background: transparent;
-  border-color: transparent;
+  border: 0;
+  box-shadow: none;
+  appearance: none;
 }
 
 .panel-link-button:hover:not(:disabled) {
