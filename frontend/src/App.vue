@@ -5,8 +5,10 @@ import CustomSelect from './components/CustomSelect.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import DataTableView from './components/DataTableView.vue'
 import EditorTabs from './components/EditorTabs.vue'
+import EditRowDialog from './components/EditRowDialog.vue'
 import FilterDialog from './components/FilterDialog.vue'
 import ImportCsvDialog from './components/ImportCsvDialog.vue'
+import InsertRowDialog from './components/InsertRowDialog.vue'
 import MainToolbar from './components/MainToolbar.vue'
 import ResultDetailDialog from './components/ResultDetailDialog.vue'
 import ServicesPanel from './components/ServicesPanel.vue'
@@ -1075,103 +1077,32 @@ function errorMessage(error) {
       </form>
     </div>
 
-    <div v-if="editDialogOpen" class="dialog-backdrop">
-      <form class="dialog compact-dialog row-dialog" @submit.prevent="saveRow">
-        <header>
-          <div class="dialog-title">
-            <h2>编辑行</h2>
-            <span>{{ selectedDatabase }}.{{ selectedTable }} · 主键字段只读</span>
-          </div>
-          <button type="button" class="icon-close" @click="editDialogOpen = false">×</button>
-        </header>
-        <div class="row-editor-summary">
-          <span>{{ tableData.columns.length }} 个字段</span>
-          <span>{{ tableData.primaryKeys.length }} 个主键</span>
-          <span>保存后会立即写入数据库</span>
-        </div>
-        <div class="dialog-body row-editor">
-          <div
-            v-for="column in tableData.columns"
-            :key="column.name"
-            class="field row-field"
-            :class="{'is-primary': isPrimaryKeyColumn(column), 'is-null': editNulls[column.name], 'is-long': isLongTextColumn(column)}"
-          >
-            <span class="field-heading">
-              <span class="field-name">{{ column.name }}</span>
-              <span class="field-meta">
-                <span v-if="isPrimaryKeyColumn(column)" class="field-badge key-badge">PRIMARY</span>
-                <span class="field-type">{{ column.type }}</span>
-              </span>
-            </span>
-            <label v-if="isNullableColumn(column)" class="null-toggle" :class="{active: editNulls[column.name], disabled: isPrimaryKeyColumn(column)}">
-              <input v-model="editNulls[column.name]" type="checkbox" :disabled="isPrimaryKeyColumn(column)" data-native-context>
-              <span>NULL</span>
-            </label>
-            <textarea
-              v-if="isLongTextColumn(column)"
-              v-model="editValues[column.name]"
-              :disabled="isPrimaryKeyColumn(column) || editNulls[column.name]"
-              rows="4"
-              data-native-context
-            ></textarea>
-            <input v-else v-model="editValues[column.name]" :disabled="isPrimaryKeyColumn(column) || editNulls[column.name]" data-native-context>
-          </div>
-        </div>
-        <footer>
-          <button type="button" class="ghost" @click="editDialogOpen = false">取消</button>
-          <button class="primary" type="submit">保存修改</button>
-        </footer>
-      </form>
-    </div>
+    <EditRowDialog
+      :open="editDialogOpen"
+      :database="selectedDatabase"
+      :table="selectedTable"
+      :table-data="tableData"
+      :values="editValues"
+      :nulls="editNulls"
+      :is-nullable-column="isNullableColumn"
+      :is-primary-key-column="isPrimaryKeyColumn"
+      :is-long-text-column="isLongTextColumn"
+      @close="editDialogOpen = false"
+      @submit="saveRow"
+    />
 
-    <div v-if="insertDialogOpen" class="dialog-backdrop">
-      <form class="dialog compact-dialog row-dialog" @submit.prevent="saveInsertRow">
-        <header>
-          <div class="dialog-title">
-            <h2>新增行</h2>
-            <span>{{ selectedDatabase }}.{{ selectedTable }} · 自增字段已跳过</span>
-          </div>
-          <button type="button" class="icon-close" @click="insertDialogOpen = false">×</button>
-        </header>
-        <div class="row-editor-summary">
-          <span>{{ tableData.columns.filter((item) => !String(item.extra || '').includes('auto_increment')).length }} 个可填写字段</span>
-          <span>保存后会立即写入数据库</span>
-        </div>
-        <div class="dialog-body row-editor">
-          <div
-            v-for="column in tableData.columns.filter((item) => !String(item.extra || '').includes('auto_increment'))"
-            :key="column.name"
-            class="field row-field"
-            :class="{'is-null': insertNulls[column.name], 'is-long': isLongTextColumn(column)}"
-          >
-            <span class="field-heading">
-              <span class="field-name">{{ column.name }}</span>
-              <span class="field-meta">
-                <span v-if="column.default !== null && column.default !== undefined" class="field-badge">默认 {{ column.default }}</span>
-                <span class="field-type">{{ column.type }}</span>
-              </span>
-            </span>
-            <label v-if="isNullableColumn(column)" class="null-toggle" :class="{active: insertNulls[column.name]}">
-              <input v-model="insertNulls[column.name]" type="checkbox" data-native-context>
-              <span>NULL</span>
-            </label>
-            <textarea
-              v-if="isLongTextColumn(column)"
-              v-model="insertValues[column.name]"
-              :disabled="insertNulls[column.name]"
-              :placeholder="column.type"
-              rows="4"
-              data-native-context
-            ></textarea>
-            <input v-else v-model="insertValues[column.name]" :disabled="insertNulls[column.name]" :placeholder="column.type" data-native-context>
-          </div>
-        </div>
-        <footer>
-          <button type="button" class="ghost" @click="insertDialogOpen = false">取消</button>
-          <button class="primary" type="submit">插入</button>
-        </footer>
-      </form>
-    </div>
+    <InsertRowDialog
+      :open="insertDialogOpen"
+      :database="selectedDatabase"
+      :table="selectedTable"
+      :columns="tableData.columns"
+      :values="insertValues"
+      :nulls="insertNulls"
+      :is-nullable-column="isNullableColumn"
+      :is-long-text-column="isLongTextColumn"
+      @close="insertDialogOpen = false"
+      @submit="saveInsertRow"
+    />
 
     <ConfirmDialog
       :open="confirmDialogOpen"
