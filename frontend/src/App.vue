@@ -92,7 +92,8 @@ const query = ref('SELECT 1;')
 const queryEditorRef = ref(null)
 const querySelection = ref({start: 0, end: 0})
 const queryHistory = ref([])
-const selectedHistoryIndex = ref('')
+const selectedHistoryId = ref('')
+const historySearch = ref('')
 const runningQueryId = ref('')
 const resultGridRef = ref(null)
 const resultGridScrollTop = ref(0)
@@ -228,10 +229,34 @@ const pageSizeOptions = [
   {label: '100 rows', value: 100},
   {label: '200 rows', value: 200}
 ]
+const filteredQueryHistory = computed(() => {
+  const search = historySearch.value.trim().toLowerCase()
+  const profileId = activeProfileId.value
+  const database = selectedDatabase.value || ''
+  const scored = queryHistory.value.map((item) => {
+    const sameContext = item.profileId === profileId && item.database === database
+    return {...item, sameContext}
+  })
+  return scored
+    .filter((item) => !search || `${item.sql} ${item.database} ${item.profileName} ${item.status}`.toLowerCase().includes(search))
+    .sort((a, b) => Number(b.favorite) - Number(a.favorite) || Number(b.sameContext) - Number(a.sameContext) || String(b.executedAt).localeCompare(String(a.executedAt)))
+    .slice(0, 60)
+})
 const historyOptions = computed(() => [
   {label: 'Recent SQL', value: ''},
-  ...queryHistory.value.map((item, index) => ({label: item.slice(0, 90), value: String(index)}))
+  ...filteredQueryHistory.value.map((item) => ({label: historyOptionLabel(item), value: item.id}))
 ])
+const selectedHistoryItem = computed(() => queryHistory.value.find((item) => item.id === selectedHistoryId.value) || null)
+const currentHistoryItem = computed(() => {
+  const normalizedSql = normalizeResultSql(currentSqlText() || query.value)
+  if (!normalizedSql) return null
+  return queryHistory.value.find((item) => (
+    item.normalizedSql === normalizedSql &&
+    item.profileId === activeProfileId.value &&
+    item.database === (selectedDatabase.value || '')
+  )) || null
+})
+const favoriteHistoryItem = computed(() => selectedHistoryItem.value || currentHistoryItem.value)
 const orderByOptions = computed(() => [
   {label: 'none', value: ''},
   ...tableData.value.columns.map((column) => ({label: column.name, value: column.name}))
@@ -1209,7 +1234,6 @@ async function executeSql(mode = 'query', target = 'smart') {
     addLog('warn', 'SQL execution cancelled by safety guard', logContext({scope: execution.scope, sql: dangerousSql}))
     return
   }
-  addQueryHistory(execution.historySql)
   const profileId = activeProfileId.value
   const startedAt = perfStart()
   busy.value = true
@@ -1251,6 +1275,15 @@ async function executeSql(mode = 'query', target = 'smart') {
       completed += 1
     }
     const messageText = execution.statements.length > 1 ? `执行完成：${completed}/${execution.statements.length} 条 SQL` : (lastResult?.message || '执行完成')
+    recordQueryHistory(execution.historySql, {
+      mode,
+      scope: execution.scope,
+      status: 'success',
+      rows: lastResult?.rows?.length || 0,
+      affected: lastResult?.rowsAffected || 0,
+      elapsedMs: elapsedSince(startedAt),
+      statements: completed
+    })
     setMessage(messageText, 'success', logContext({
       scope: execution.scope,
       elapsedMs: lastResult?.elapsedMs || 0,
@@ -1263,6 +1296,16 @@ async function executeSql(mode = 'query', target = 'smart') {
   } catch (error) {
     const message = errorMessage(error)
     const wasCancelled = /context canceled|cancel/i.test(message)
+    recordQueryHistory(execution.historySql, {
+      mode,
+      scope: execution.scope,
+      status: wasCancelled ? 'cancelled' : 'error',
+      rows: 0,
+      affected: 0,
+      elapsedMs: elapsedSince(startedAt),
+      statements: completed,
+      error: message
+    })
     setMessage(wasCancelled ? `查询已取消：已完成 ${completed}/${execution.statements.length} 条 SQL` : message, wasCancelled ? 'warn' : 'error', logContext({operation: mode === 'explain' ? 'explain' : 'execute', scope: execution.scope}))
   } finally {
     runningQueryId.value = ''
@@ -1461,25 +1504,129 @@ function statementSpans(sql) {
   return spans
 }
 
-function addQueryHistory(sql) {
-  const normalized = sql.trim()
-  if (!normalized) return
-  queryHistory.value = [normalized, ...queryHistory.value.filter((item) => item !== normalized)].slice(0, 30)
-  selectedHistoryIndex.value = ''
-  persistQueryHistory()
-}
-
 function loadQueryHistory() {
   try {
     const parsed = JSON.parse(localStorage.getItem(QUERY_HISTORY_KEY) || '[]')
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string').slice(0, 30) : []
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((item) => normalizeHistoryItem(item))
+      .filter(Boolean)
+      .slice(0, 200)
   } catch {
     return []
   }
 }
 
 function persistQueryHistory() {
-  localStorage.setItem(QUERY_HISTORY_KEY, JSON.stringify(queryHistory.value.slice(0, 30)))
+  const favorites = queryHistory.value.filter((item) => item.favorite)
+  const recent = queryHistory.value.filter((item) => !item.favorite).slice(0, 180)
+  localStorage.setItem(QUERY_HISTORY_KEY, JSON.stringify([...favorites, ...recent].slice(0, 220)))
+}
+
+function normalizeHistoryItem(item) {
+  if (typeof item === 'string') {
+    const sql = item.trim()
+    if (!sql) return null
+    return {
+      id: newId(),
+      sql,
+      normalizedSql: normalizeResultSql(sql),
+      profileId: '',
+      profileName: '',
+      database: '',
+      mode: 'query',
+      scope: 'legacy',
+      status: 'unknown',
+      rows: 0,
+      affected: 0,
+      elapsedMs: 0,
+      statements: splitSqlStatements(sql).length || 1,
+      favorite: false,
+      executedAt: new Date(0).toISOString(),
+      error: ''
+    }
+  }
+  if (!item || typeof item !== 'object' || typeof item.sql !== 'string' || !item.sql.trim()) return null
+  const sql = item.sql.trim()
+  return {
+    id: item.id || newId(),
+    sql,
+    normalizedSql: item.normalizedSql || normalizeResultSql(sql),
+    profileId: item.profileId || '',
+    profileName: item.profileName || '',
+    database: item.database || '',
+    mode: item.mode || 'query',
+    scope: item.scope || 'current',
+    status: item.status || 'unknown',
+    rows: Number(item.rows) || 0,
+    affected: Number(item.affected) || 0,
+    elapsedMs: Number(item.elapsedMs) || 0,
+    statements: Number(item.statements) || 1,
+    favorite: Boolean(item.favorite),
+    executedAt: item.executedAt || new Date(0).toISOString(),
+    error: item.error || ''
+  }
+}
+
+function recordQueryHistory(sql, meta = {}) {
+  const normalizedSql = normalizeResultSql(sql)
+  if (!normalizedSql) return
+  const profileId = activeProfileId.value
+  const database = selectedDatabase.value || ''
+  const mode = meta.mode || 'query'
+  const scope = meta.scope || 'current'
+  const existingIndex = queryHistory.value.findIndex((item) => (
+    item.normalizedSql === normalizedSql &&
+    item.profileId === profileId &&
+    item.database === database &&
+    item.mode === mode &&
+    item.scope === scope
+  ))
+  const existing = existingIndex >= 0 ? queryHistory.value[existingIndex] : null
+  const item = {
+    id: existing?.id || newId(),
+    sql: String(sql || '').trim(),
+    normalizedSql,
+    profileId,
+    profileName: activeProfileName(profileId),
+    database,
+    mode,
+    scope,
+    status: meta.status || 'success',
+    rows: Number(meta.rows) || 0,
+    affected: Number(meta.affected) || 0,
+    elapsedMs: Number(meta.elapsedMs) || 0,
+    statements: Number(meta.statements) || 1,
+    favorite: Boolean(existing?.favorite),
+    executedAt: new Date().toISOString(),
+    error: meta.error || ''
+  }
+  queryHistory.value = [item, ...queryHistory.value.filter((_, index) => index !== existingIndex)]
+    .sort((a, b) => Number(b.favorite) - Number(a.favorite) || String(b.executedAt).localeCompare(String(a.executedAt)))
+    .slice(0, 220)
+  selectedHistoryId.value = ''
+  persistQueryHistory()
+}
+
+function historyOptionLabel(item) {
+  const mark = item.favorite ? '★ ' : ''
+  const status = item.status === 'success' ? 'ok' : item.status
+  const context = item.database || item.profileName ? ` · ${[item.profileName, item.database].filter(Boolean).join('/')}` : ''
+  const stats = item.status === 'success' ? ` · ${item.rows}r ${item.elapsedMs}ms` : item.error ? ` · ${item.error.slice(0, 32)}` : ''
+  return `${mark}${compactSql(item.sql).slice(0, 72)} · ${status}${context}${stats}`
+}
+
+function toggleFavoriteHistory(item = favoriteHistoryItem.value) {
+  const targetSql = currentSqlText() || query.value.trim()
+  let target = item
+  if (!target && targetSql) {
+    recordQueryHistory(targetSql, {status: 'saved', mode: 'query', scope: 'favorite'})
+    target = queryHistory.value[0]
+  }
+  if (!target) return
+  queryHistory.value = queryHistory.value.map((entry) => entry.id === target.id ? {...entry, favorite: !entry.favorite} : entry)
+  selectedHistoryId.value = target.id
+  persistQueryHistory()
 }
 
 function isDangerousSql(sql) {
@@ -1503,11 +1650,11 @@ function isSchemaChangingSql(sql) {
 }
 
 function applyQueryHistory() {
-  if (selectedHistoryIndex.value === '') return
-  const item = queryHistory.value[Number(selectedHistoryIndex.value)]
+  if (!selectedHistoryId.value) return
+  const item = selectedHistoryItem.value
   if (item) {
-    query.value = item
-    addLog('debug', 'Load SQL from history', logContext())
+    query.value = item.sql
+    addLog('debug', 'Load SQL from history', logContext({historyId: item.id, status: item.status, elapsedMs: item.elapsedMs}))
   }
 }
 
@@ -1993,7 +2140,7 @@ function choosePageSize(value) {
 }
 
 function chooseHistory(value) {
-  selectedHistoryIndex.value = value
+  selectedHistoryId.value = value
   closeCustomSelect()
   applyQueryHistory()
 }
@@ -2476,16 +2623,20 @@ function demoTableData(page = 1, pageSize = 50) {
             <div class="toolbar-fill"></div>
             <div class="toolbar-group history-group">
               <span class="toolbar-label">History</span>
-              <div class="custom-select wide" :class="{open: openSelectId === 'history', disabled: !queryHistory.length}" @click.stop>
-                <button class="custom-select-button" :disabled="!queryHistory.length" @click="toggleCustomSelect('history')">
-                  <span>{{ optionLabel(historyOptions, selectedHistoryIndex, 'Recent SQL') }}</span>
+              <input v-model="historySearch" class="history-search" placeholder="Search" data-native-context>
+              <button class="toolbar-action favorite-action" :title="favoriteHistoryItem?.favorite ? 'Unfavorite SQL' : 'Favorite SQL'" @click="toggleFavoriteHistory">
+                {{ favoriteHistoryItem?.favorite ? '★' : '☆' }}
+              </button>
+              <div class="custom-select wide" :class="{open: openSelectId === 'history', disabled: historyOptions.length <= 1}" @click.stop>
+                <button class="custom-select-button" :disabled="historyOptions.length <= 1" @click="toggleCustomSelect('history')">
+                  <span>{{ optionLabel(historyOptions, selectedHistoryId, 'Recent SQL') }}</span>
                   <span class="select-caret">⌄</span>
                 </button>
                 <div v-if="openSelectId === 'history'" class="custom-select-menu">
                   <button
                     v-for="option in historyOptions"
                     :key="option.value || 'empty'"
-                    :class="{active: option.value === selectedHistoryIndex}"
+                    :class="{active: option.value === selectedHistoryId}"
                     @click="chooseHistory(option.value)"
                   >{{ option.label }}</button>
                 </div>
@@ -3919,12 +4070,29 @@ button:disabled {
 }
 
 .history-group {
-  max-width: min(320px, 32vw);
+  max-width: min(520px, 42vw);
 }
 
 .history-group .custom-select {
-  min-width: 190px;
-  max-width: 260px;
+  min-width: 210px;
+  max-width: 280px;
+}
+
+.history-search {
+  width: 96px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 8px;
+  color: #cbd1db;
+  background: #202226;
+  border: 1px solid #3a3e45;
+  border-radius: 4px;
+}
+
+.favorite-action {
+  width: 28px;
+  padding: 0;
+  color: #d6a35f;
 }
 
 .shortcut-hint {
