@@ -256,7 +256,7 @@ const currentHistoryItem = computed(() => {
     item.database === (selectedDatabase.value || '')
   )) || null
 })
-const favoriteHistoryItem = computed(() => selectedHistoryItem.value || currentHistoryItem.value)
+const savedHistoryItem = computed(() => selectedHistoryItem.value || currentHistoryItem.value)
 const orderByOptions = computed(() => [
   {label: 'none', value: ''},
   ...tableData.value.columns.map((column) => ({label: column.name, value: column.name}))
@@ -1616,7 +1616,7 @@ function historyOptionLabel(item) {
   return `${mark}${compactSql(item.sql).slice(0, 72)} · ${status}${context}${stats}`
 }
 
-function toggleFavoriteHistory(item = favoriteHistoryItem.value) {
+function toggleSavedHistory(item = savedHistoryItem.value) {
   const targetSql = currentSqlText() || query.value.trim()
   let target = item
   if (!target && targetSql) {
@@ -2624,8 +2624,8 @@ function demoTableData(page = 1, pageSize = 50) {
             <div class="toolbar-group history-group">
               <span class="toolbar-label">History</span>
               <input v-model="historySearch" class="history-search" placeholder="Search" data-native-context>
-              <button class="toolbar-action favorite-action" :title="favoriteHistoryItem?.favorite ? 'Unfavorite SQL' : 'Favorite SQL'" @click="toggleFavoriteHistory">
-                {{ favoriteHistoryItem?.favorite ? '★' : '☆' }}
+              <button class="toolbar-action save-history-action" :title="savedHistoryItem?.favorite ? 'Remove saved SQL' : 'Save current SQL'" @click="toggleSavedHistory">
+                {{ savedHistoryItem?.favorite ? 'Saved' : 'Save' }}
               </button>
               <div class="custom-select wide" :class="{open: openSelectId === 'history', disabled: historyOptions.length <= 1}" @click.stop>
                 <button class="custom-select-button" :disabled="historyOptions.length <= 1" @click="toggleCustomSelect('history')">
@@ -4089,10 +4089,12 @@ button:disabled {
   border-radius: 4px;
 }
 
-.favorite-action {
-  width: 28px;
-  padding: 0;
-  color: #d6a35f;
+.save-history-action {
+  min-width: 52px;
+  padding: 0 9px;
+  color: #d9f2dd;
+  background: rgba(77, 179, 99, 0.12);
+  border-color: rgba(77, 179, 99, 0.3);
 }
 
 .shortcut-hint {
