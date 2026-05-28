@@ -5,6 +5,8 @@ import CustomSelect from './components/CustomSelect.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import DataTableView from './components/DataTableView.vue'
 import EditorTabs from './components/EditorTabs.vue'
+import FilterDialog from './components/FilterDialog.vue'
+import ImportCsvDialog from './components/ImportCsvDialog.vue'
 import MainToolbar from './components/MainToolbar.vue'
 import ResultDetailDialog from './components/ResultDetailDialog.vue'
 import ServicesPanel from './components/ServicesPanel.vue'
@@ -1177,59 +1179,21 @@ function errorMessage(error) {
       @resolve="resolveConfirm"
     />
 
-    <div v-if="filterDialogOpen" class="dialog-backdrop">
-      <form class="dialog compact-dialog filter-dialog" @submit.prevent="applyFilterBuilder">
-        <header>
-          <div class="dialog-title">
-            <h2>构建筛选条件</h2>
-            <span>{{ selectedDatabase }}.{{ selectedTable }}</span>
-          </div>
-          <button type="button" class="icon-close" @click="filterDialogOpen = false">×</button>
-        </header>
-        <div class="dialog-body filter-builder">
-          <label class="field">
-            <span>字段</span>
-            <CustomSelect
-              field
-              :options="filterColumnOptions"
-              :value="filterDraft.column"
-              fallback="选择字段"
-              :open="openSelectId === 'filterColumn'"
-              @toggle="toggleCustomSelect('filterColumn')"
-              @choose="chooseFilterColumn"
-            />
-          </label>
-          <label class="field">
-            <span>条件</span>
-            <CustomSelect
-              field
-              :options="filterOperatorOptions"
-              :value="filterDraft.operator"
-              fallback="= equals"
-              :open="openSelectId === 'filterOperator'"
-              @toggle="toggleCustomSelect('filterOperator')"
-              @choose="chooseFilterOperator"
-            />
-          </label>
-          <label v-if="!['IS NULL', 'IS NOT NULL'].includes(filterDraft.operator)" class="field wide">
-            <span>{{ filterDraft.operator === 'BETWEEN' ? '起始值' : '值' }}</span>
-            <input v-model="filterDraft.value" data-native-context>
-          </label>
-          <label v-if="filterDraft.operator === 'BETWEEN'" class="field wide">
-            <span>结束值</span>
-            <input v-model="filterDraft.value2" data-native-context>
-          </label>
-          <div class="filter-preview wide">
-            <span>WHERE</span>
-            <code>{{ buildFilterCondition(filterDraft) || '条件未完成' }}</code>
-          </div>
-        </div>
-        <footer>
-          <button type="button" class="ghost" @click="filterDialogOpen = false">取消</button>
-          <button class="primary" type="submit">应用筛选</button>
-        </footer>
-      </form>
-    </div>
+    <FilterDialog
+      :open="filterDialogOpen"
+      :database="selectedDatabase"
+      :table="selectedTable"
+      :draft="filterDraft"
+      :column-options="filterColumnOptions"
+      :operator-options="filterOperatorOptions"
+      :open-select-id="openSelectId"
+      :build-filter-condition="buildFilterCondition"
+      @close="filterDialogOpen = false"
+      @submit="applyFilterBuilder"
+      @toggle-select="toggleCustomSelect"
+      @choose-column="chooseFilterColumn"
+      @choose-operator="chooseFilterOperator"
+    />
 
     <ResultDetailDialog
       :open="resultDetailOpen"
@@ -1237,41 +1201,15 @@ function errorMessage(error) {
       @close="resultDetailOpen = false"
     />
 
-    <div v-if="importDialogOpen" class="dialog-backdrop">
-      <section class="dialog import-dialog">
-        <header>
-          <div class="dialog-title">
-            <h2>导入 CSV 预览</h2>
-            <span>{{ selectedDatabase }}.{{ selectedTable }} · {{ importPreview.total }} rows</span>
-          </div>
-          <button type="button" class="icon-close" @click="importDialogOpen = false">×</button>
-        </header>
-        <div class="dialog-body">
-          <p class="confirm-copy">将按 CSV 表头匹配当前表字段；未匹配字段会忽略。单次最多导入 1000 行。</p>
-          <div class="grid-wrap import-preview-grid">
-            <table v-if="importPreview.columns.length" class="data-grid">
-              <thead>
-                <tr>
-                  <th class="row-num"></th>
-                  <th v-for="column in importPreview.columns" :key="column">{{ column }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, rowIndex) in importPreview.previewRows" :key="rowIndex">
-                  <td class="row-num">{{ rowIndex + 1 }}</td>
-                  <td v-for="(value, cellIndex) in row" :key="cellIndex">{{ value || '<empty>' }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div v-else class="empty-state">没有解析到 CSV 数据。</div>
-          </div>
-        </div>
-        <footer>
-          <button type="button" class="ghost" @click="importDialogOpen = false">关闭</button>
-          <button class="primary" type="button" :disabled="busy || !importPreview.total" @click="confirmCsvImport">导入</button>
-        </footer>
-      </section>
-    </div>
+    <ImportCsvDialog
+      :open="importDialogOpen"
+      :database="selectedDatabase"
+      :table="selectedTable"
+      :preview="importPreview"
+      :busy="busy"
+      @close="importDialogOpen = false"
+      @confirm="confirmCsvImport"
+    />
 
     <Teleport to="body">
       <div
