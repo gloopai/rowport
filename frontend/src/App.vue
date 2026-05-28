@@ -1,5 +1,5 @@
 <script setup>
-import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import DatabaseExplorer from './components/DatabaseExplorer.vue'
 import CustomSelect from './components/CustomSelect.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
@@ -20,15 +20,18 @@ import SqlTextEditor from './components/SqlTextEditor.vue'
 import StructureView from './components/StructureView.vue'
 import TableContextMenu from './components/TableContextMenu.vue'
 import {useAppFeedback} from './composables/useAppFeedback'
+import {useAppSurface} from './composables/useAppSurface'
 import {useConnections} from './composables/useConnections'
 import {useLayoutResize} from './composables/useLayoutResize'
 import {logLevelOptions, useOperationLogs} from './composables/useOperationLogs'
 import {useSchemaExplorer} from './composables/useSchemaExplorer'
+import {filterOperatorOptions, orderDirOptions, pageSizeOptions} from './composables/selectOptions'
 import {compactSql} from './composables/sqlUtils'
 import {useSelectControls} from './composables/useSelectControls'
 import {useSqlConsole} from './composables/useSqlConsole'
 import {useTableContextMenu} from './composables/useTableContextMenu'
 import {useTableData} from './composables/useTableData'
+import {useVirtualGrid, virtualRows, VIRTUAL_ROW_HEIGHT} from './composables/useVirtualGrid'
 import {useWorkspaceTabs} from './composables/useWorkspaceTabs'
 
 const appStartedAt = performance.now()
@@ -42,11 +45,6 @@ const selectedObject = ref({profileId: '', type: 'table', database: '', table: '
 const busy = ref(false)
 
 const suppressDatabaseWatch = ref(false)
-const queryToolbarHeight = ref(40)
-let queryToolbarObserver = null
-const VIRTUAL_ROW_HEIGHT = 27
-const VIRTUAL_VISIBLE_ROWS = 80
-const VIRTUAL_OVERSCAN = 12
 const appActions = {
   copyText: (...args) => copyText(...args),
   downloadText: (...args) => downloadText(...args)
@@ -212,7 +210,7 @@ const {
   hasRuntime,
   logContext,
   perfStart,
-  resetGridScroll,
+  resetGridScroll: (...args) => resetGridScroll(...args),
   selectedDatabase,
   selectedTable,
   setMessage,
@@ -254,7 +252,7 @@ const {
   openDataTab,
   openStructureTab,
   perfStart,
-  resetGridScroll,
+  resetGridScroll: (...args) => resetGridScroll(...args),
   selectedDatabase,
   selectedObjectRef: selectedObject,
   selectedProfileId: {
@@ -329,7 +327,6 @@ const {
   perfStart,
   elapsedSince
 })
-const queryRows = computed(() => `${queryToolbarHeight.value}px minmax(0, 1fr)`)
 const {
   shellColumns,
   mainRows,
@@ -339,10 +336,6 @@ const {
   beginResize,
   resetPaneSize
 } = useLayoutResize()
-const virtualDataRows = computed(() => virtualRows(tableData.value.rows || [], dataGridScrollTop.value))
-const dataTopSpacerHeight = computed(() => virtualDataRows.value.start * VIRTUAL_ROW_HEIGHT)
-const dataBottomSpacerHeight = computed(() => Math.max(0, ((tableData.value.rows || []).length - virtualDataRows.value.end) * VIRTUAL_ROW_HEIGHT))
-const dataGridColspan = computed(() => tableData.value.columns.length + 2)
 const {
   query,
   queryEditorRef,
@@ -411,6 +404,19 @@ const {
   rowHeight: VIRTUAL_ROW_HEIGHT
 })
 const {
+  virtualDataRows,
+  dataTopSpacerHeight,
+  dataBottomSpacerHeight,
+  dataGridColspan,
+  handleDataGridScroll,
+  resetGridScroll
+} = useVirtualGrid({
+  dataGridScrollTop,
+  dataTableViewRef,
+  resetResultGridScroll,
+  tableData
+})
+const {
   contextMenu,
   contextMenuStyle,
   openTableContextMenu,
@@ -452,70 +458,36 @@ const {
   logLevelFilter,
   selectedDatabase
 })
+const {
+  queryRows,
+  closeSurfaceOverlays,
+  observeQueryToolbar,
+  bindSurfaceEvents,
+  unbindSurfaceEvents
+} = useAppSurface({
+  closeContextMenu,
+  closeCustomSelect,
+  queryToolbarRef
+})
 const databaseOptions = computed(() => [
   {label: 'Database', value: ''},
   ...activeConnection.value.databases.map((database) => ({label: database.name, value: database.name}))
 ])
-const pageSizeOptions = [
-  {label: '25 rows', value: 25},
-  {label: '50 rows', value: 50},
-  {label: '100 rows', value: 100},
-  {label: '200 rows', value: 200}
-]
-const orderDirOptions = [
-  {label: 'ASC', value: 'ASC'},
-  {label: 'DESC', value: 'DESC'}
-]
-const filterOperatorOptions = [
-  {label: '= equals', value: '='},
-  {label: '!= not equal', value: '!='},
-  {label: '> greater than', value: '>'},
-  {label: '>= greater or equal', value: '>='},
-  {label: '< less than', value: '<'},
-  {label: '<= less or equal', value: '<='},
-  {label: 'LIKE contains', value: 'LIKE'},
-  {label: 'NOT LIKE excludes', value: 'NOT LIKE'},
-  {label: 'IS NULL', value: 'IS NULL'},
-  {label: 'IS NOT NULL', value: 'IS NOT NULL'},
-  {label: 'BETWEEN', value: 'BETWEEN'}
-]
 onMounted(async () => {
   loadLayout()
-  window.addEventListener('contextmenu', preventNativeContextMenu)
-  window.addEventListener('selectstart', preventChromeTextSelection)
-  window.addEventListener('resize', syncQueryToolbarHeight)
+  bindSurfaceEvents()
   initializeQueryHistory()
   await initializeProfiles()
   if (selectedProfileId.value) {
     setExpanded(true, 'server', selectedProfileId.value)
   }
-  await nextTick()
   observeQueryToolbar()
   addLog('info', 'Application ready', logContext({elapsedMs: elapsedSince(appStartedAt), profiles: profiles.value.length}))
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('contextmenu', preventNativeContextMenu)
-  window.removeEventListener('selectstart', preventChromeTextSelection)
-  window.removeEventListener('resize', syncQueryToolbarHeight)
-  queryToolbarObserver?.disconnect()
+  unbindSurfaceEvents()
 })
-
-function observeQueryToolbar() {
-  syncQueryToolbarHeight()
-  queryToolbarObserver?.disconnect()
-  const toolbarElement = queryToolbarRef.value?.getElement?.()
-  if (!toolbarElement || typeof ResizeObserver === 'undefined') return
-  queryToolbarObserver = new ResizeObserver(syncQueryToolbarHeight)
-  queryToolbarObserver.observe(toolbarElement)
-}
-
-function syncQueryToolbarHeight() {
-  nextTick(() => {
-    const height = queryToolbarRef.value?.getElement?.()?.getBoundingClientRect?.().height || 40
-    queryToolbarHeight.value = Math.max(40, Math.ceil(height))
-  })
-}
 
 watch(selectedDatabase, async (database) => {
   await handleSelectedDatabaseChange(database, resetTableView)
@@ -545,54 +517,6 @@ function perfStart() {
 
 function elapsedSince(startedAt) {
   return Math.max(0, Math.round(performance.now() - startedAt))
-}
-
-function virtualRows(rows, scrollTop) {
-  const total = rows.length
-  if (total <= VIRTUAL_VISIBLE_ROWS + VIRTUAL_OVERSCAN * 2) {
-    return {items: rows.map((row, index) => ({row, index})), start: 0, end: total}
-  }
-  const firstVisible = Math.floor(scrollTop / VIRTUAL_ROW_HEIGHT)
-  const start = Math.max(0, firstVisible - VIRTUAL_OVERSCAN)
-  const end = Math.min(total, start + VIRTUAL_VISIBLE_ROWS + VIRTUAL_OVERSCAN * 2)
-  return {
-    items: rows.slice(start, end).map((row, offset) => ({row, index: start + offset})),
-    start,
-    end
-  }
-}
-
-function handleDataGridScroll(event) {
-  dataGridScrollTop.value = event.target.scrollTop
-}
-
-function resetGridScroll(kind) {
-  if (kind === 'result') {
-    resetResultGridScroll()
-  }
-  if (kind === 'data') {
-    dataGridScrollTop.value = 0
-    nextTick(() => {
-      dataTableViewRef.value?.scrollToTop()
-    })
-  }
-}
-
-function closeSurfaceOverlays() {
-  closeContextMenu()
-  closeCustomSelect()
-}
-
-function preventNativeContextMenu(event) {
-  const target = event.target
-  if (target?.closest?.('[data-native-context]')) return
-  event.preventDefault()
-}
-
-function preventChromeTextSelection(event) {
-  const target = event.target
-  if (target?.closest?.('input, textarea, [contenteditable="true"], [data-native-context], [data-allow-select], .ddl-view, .console-output')) return
-  event.preventDefault()
 }
 
 </script>
