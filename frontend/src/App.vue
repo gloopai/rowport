@@ -19,6 +19,7 @@ import SqlSidePanel from './components/SqlSidePanel.vue'
 import SqlTextEditor from './components/SqlTextEditor.vue'
 import StructureView from './components/StructureView.vue'
 import TableContextMenu from './components/TableContextMenu.vue'
+import {useAppFeedback} from './composables/useAppFeedback'
 import {useConnections} from './composables/useConnections'
 import {useLayoutResize} from './composables/useLayoutResize'
 import {logLevelOptions, useOperationLogs} from './composables/useOperationLogs'
@@ -39,17 +40,17 @@ const selectedDatabase = ref('')
 const selectedTable = ref('')
 const selectedObject = ref({profileId: '', type: 'table', database: '', table: ''})
 const busy = ref(false)
-const message = ref('')
 
 const suppressDatabaseWatch = ref(false)
-const confirmDialogOpen = ref(false)
-const confirmDialog = ref({title: '', body: '', action: '确认'})
-let confirmResolve = null
 const queryToolbarHeight = ref(40)
 let queryToolbarObserver = null
 const VIRTUAL_ROW_HEIGHT = 27
 const VIRTUAL_VISIBLE_ROWS = 80
 const VIRTUAL_OVERSCAN = 12
+const appActions = {
+  copyText: (...args) => copyText(...args),
+  downloadText: (...args) => downloadText(...args)
+}
 
 const {
   servicesPanelRef,
@@ -65,12 +66,28 @@ const {
   logContextSummary,
   logSql
 } = useOperationLogs({
-  copyText,
-  downloadText,
+  copyText: (...args) => appActions.copyText(...args),
+  downloadText: (...args) => appActions.downloadText(...args),
   formatLogTime,
   logContext,
   newId
 })
+const {
+  message,
+  confirmDialogOpen,
+  confirmDialog,
+  setMessage,
+  askConfirm,
+  resolveConfirm,
+  copyText,
+  downloadText,
+  errorMessage
+} = useAppFeedback({
+  addLog,
+  logContext
+})
+appActions.copyText = copyText
+appActions.downloadText = downloadText
 const {
   openTabs,
   activeTabId,
@@ -85,11 +102,11 @@ const {
 } = useWorkspaceTabs({
   activeProfileId: () => activeProfileId.value,
   addLog,
-  loadTableDDL,
-  loadTableMetadata,
-  loadTablePage,
+  loadTableDDL: (...args) => loadTableDDL(...args),
+  loadTableMetadata: (...args) => loadTableMetadata(...args),
+  loadTablePage: (...args) => loadTablePage(...args),
   logContext,
-  metadataKey,
+  metadataKey: (...args) => metadataKey(...args),
   profileById: (...args) => profileById(...args),
   queryRef: {
     get value() {
@@ -99,7 +116,7 @@ const {
       query.value = value
     }
   },
-  refreshTables,
+  refreshTables: (...args) => refreshTables(...args),
   selectedDatabase,
   selectedObject,
   selectedProfile: () => selectedProfile.value,
@@ -114,8 +131,16 @@ const {
   selectedTable,
   suppressDatabaseWatch,
   syncActiveConnectionState: (...args) => syncActiveConnectionState(...args),
-  tableData,
-  tableMetadata
+  tableData: {
+    get value() {
+      return tableData.value
+    }
+  },
+  tableMetadata: {
+    get value() {
+      return tableMetadata.value
+    }
+  }
 })
 const {
   dataTableViewRef,
@@ -553,25 +578,6 @@ function resetGridScroll(kind) {
   }
 }
 
-async function copyText(text, label) {
-  try {
-    await navigator.clipboard.writeText(text)
-    setMessage(`${label}已复制`, 'success', logContext())
-  } catch (error) {
-    setMessage(errorMessage(error), 'error', logContext({operation: 'copy'}))
-  }
-}
-
-function downloadText(filename, content, type) {
-  const blob = new Blob([content], {type})
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
 function closeSurfaceOverlays() {
   closeContextMenu()
   closeCustomSelect()
@@ -587,33 +593,6 @@ function preventChromeTextSelection(event) {
   const target = event.target
   if (target?.closest?.('input, textarea, [contenteditable="true"], [data-native-context], [data-allow-select], .ddl-view, .console-output')) return
   event.preventDefault()
-}
-
-function setMessage(value, level = 'info', context = logContext()) {
-  message.value = value
-  addLog(level, value, context)
-}
-
-function askConfirm(title, body, action = '确认') {
-  addLog('warn', 'Open confirmation dialog', logContext({title, action}))
-  confirmDialog.value = {title, body, action}
-  confirmDialogOpen.value = true
-  return new Promise((resolve) => {
-    confirmResolve = resolve
-  })
-}
-
-function resolveConfirm(value) {
-  confirmDialogOpen.value = false
-  addLog(value ? 'warn' : 'debug', value ? 'Confirm dialog accepted' : 'Confirm dialog cancelled', logContext({title: confirmDialog.value.title}))
-  if (confirmResolve) {
-    confirmResolve(value)
-    confirmResolve = null
-  }
-}
-
-function errorMessage(error) {
-  return error?.message || String(error)
 }
 
 </script>
