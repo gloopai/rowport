@@ -2623,7 +2623,14 @@ function demoTableData(page = 1, pageSize = 50) {
             <div class="toolbar-fill"></div>
             <div class="toolbar-group history-group">
               <span class="toolbar-label">History</span>
-              <input v-model="historySearch" class="history-search" placeholder="Search" data-native-context>
+              <input
+                v-model="historySearch"
+                class="history-search"
+                placeholder="Search history"
+                data-native-context
+                @focus="openSelectId = 'history'"
+                @input="openSelectId = 'history'"
+              >
               <button
                 class="toolbar-action favorite-action"
                 :class="{saved: savedHistoryItem?.favorite}"
@@ -2632,14 +2639,16 @@ function demoTableData(page = 1, pageSize = 50) {
               >
                 {{ savedHistoryItem?.favorite ? '★' : '☆' }}
               </button>
-              <div class="custom-select wide" :class="{open: openSelectId === 'history', disabled: historyOptions.length <= 1}" @click.stop>
-                <button class="custom-select-button" :disabled="historyOptions.length <= 1" @click="toggleCustomSelect('history')">
+              <div class="custom-select wide" :class="{open: openSelectId === 'history', disabled: !queryHistory.length}" @click.stop>
+                <button class="custom-select-button" :disabled="!queryHistory.length" @click="toggleCustomSelect('history')">
                   <span>{{ optionLabel(historyOptions, selectedHistoryId, 'Recent SQL') }}</span>
                   <span class="select-caret">⌄</span>
                 </button>
                 <div v-if="openSelectId === 'history'" class="custom-select-menu">
+                  <div v-if="historyOptions.length <= 1" class="select-empty">{{ historySearch ? 'No matching history' : 'No history yet' }}</div>
                   <button
                     v-for="option in historyOptions"
+                    v-show="option.value"
                     :key="option.value || 'empty'"
                     :class="{active: option.value === selectedHistoryId}"
                     @click="chooseHistory(option.value)"
@@ -3620,6 +3629,13 @@ button:disabled {
 .custom-select-menu button.active {
   color: #ffffff;
   background: #41506a;
+}
+
+.select-empty {
+  padding: 8px;
+  color: #7f8794;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .run-button,
