@@ -1,6 +1,8 @@
 import {computed, ref} from 'vue'
+import {readStoredRaw} from './storage'
 
-const QUERY_HISTORY_KEY = 'mysql-gui.queryHistory'
+const QUERY_HISTORY_KEY = 'rowport.queryHistory'
+const LEGACY_QUERY_HISTORY_KEY = 'mysql-gui.queryHistory'
 
 export function useQueryHistory({
   activeProfileId,
@@ -49,7 +51,7 @@ export function useQueryHistory({
 
   function loadQueryHistory() {
     try {
-      const parsed = JSON.parse(localStorage.getItem(QUERY_HISTORY_KEY) || '[]')
+      const parsed = JSON.parse(readStoredRaw(QUERY_HISTORY_KEY, LEGACY_QUERY_HISTORY_KEY) || '[]')
       if (!Array.isArray(parsed)) return []
       return parsed
         .map((item) => normalizeHistoryItem(item))

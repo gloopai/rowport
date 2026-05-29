@@ -153,6 +153,46 @@ h2 {
     background: #282a2e;
 }
 
+.host-key-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #3f434a;
+}
+
+.host-key-row.muted {
+    opacity: 0.55;
+}
+
+.host-key-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    color: #b7bcc5;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.host-key-info code {
+    overflow: hidden;
+    color: #9fd0a6;
+    font-size: 11px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.host-key-info em {
+    color: #7f8792;
+    font-size: 11px;
+    font-weight: 500;
+    font-style: normal;
+}
+
 .dialog-backdrop {
     position: fixed;
     inset: 0;

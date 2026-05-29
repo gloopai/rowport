@@ -1,8 +1,11 @@
-const STORAGE_KEY = 'mysql-gui.profiles'
+import {readStoredRaw} from './storage'
+
+const STORAGE_KEY = 'rowport.profiles'
+const LEGACY_STORAGE_KEY = 'mysql-gui.profiles'
 
 export function loadProfiles(newId) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const parsed = JSON.parse(readStoredRaw(STORAGE_KEY, LEGACY_STORAGE_KEY) || '[]')
     return Array.isArray(parsed) ? parsed.map((profile) => normalizeProfile(profile, newId)) : []
   } catch {
     return []
@@ -21,6 +24,24 @@ export function persistProfiles(profiles) {
     }
   }))
   localStorage.setItem(STORAGE_KEY, JSON.stringify(safeProfiles))
+}
+
+export const tlsModeOptions = [
+  {value: 'disabled', label: '禁用'},
+  {value: 'preferred', label: '优先（不校验）'},
+  {value: 'required', label: '必需（不校验）'},
+  {value: 'verify-ca', label: '校验 CA'},
+  {value: 'verify-identity', label: '校验 CA 与主机名'}
+]
+
+function emptyTls() {
+  return {
+    mode: 'disabled',
+    serverName: '',
+    caCertPath: '',
+    clientCertPath: '',
+    clientKeyPath: ''
+  }
 }
 
 export function cloneProfile(profile) {
@@ -42,6 +63,7 @@ export function emptyProfile(newId) {
       maxOpenConns: 8,
       maxIdleConns: 2
     },
+    tls: emptyTls(),
     ssh: {
       enabled: false,
       host: '',
@@ -52,7 +74,8 @@ export function emptyProfile(newId) {
       privateKey: '',
       privateKeyPath: '',
       passphrase: '',
-      rememberPassphrase: false
+      rememberPassphrase: false,
+      knownHostKey: ''
     }
   }
 }
@@ -68,6 +91,11 @@ export function normalizeProfile(profile, newId) {
       connectTimeoutSeconds: clamp(Number(advanced.connectTimeoutSeconds) || 8, 1, 120),
       maxOpenConns: clamp(Number(advanced.maxOpenConns) || 8, 1, 128),
       maxIdleConns: clamp(Number(advanced.maxIdleConns) || 2, 0, Math.max(1, Number(advanced.maxOpenConns) || 8))
+    },
+    tls: {
+      ...base.tls,
+      ...(profile.tls || {}),
+      mode: (profile.tls && profile.tls.mode) || base.tls.mode
     },
     ssh: {
       ...base.ssh,

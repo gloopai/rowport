@@ -64,7 +64,7 @@ export function useOperationLogs({
 
   function exportVisibleLogsJson() {
     if (!visibleLogs.value.length) return
-    downloadText(`mysql-gui-logs-${Date.now()}.json`, JSON.stringify(visibleLogs.value, null, 2), 'application/json;charset=utf-8')
+    downloadText(`rowport-logs-${Date.now()}.json`, JSON.stringify(visibleLogs.value, null, 2), 'application/json;charset=utf-8')
     addLog('success', 'Export visible logs JSON', logContext({rows: visibleLogs.value.length}))
   }
 
@@ -80,7 +80,7 @@ export function useOperationLogs({
         csvValue(logContextSummary(log.context))
       ].join(','))
     ]
-    downloadText(`mysql-gui-logs-${Date.now()}.csv`, lines.join('\n'), 'text/csv;charset=utf-8')
+    downloadText(`rowport-logs-${Date.now()}.csv`, lines.join('\n'), 'text/csv;charset=utf-8')
     addLog('success', 'Export visible logs CSV', logContext({rows: visibleLogs.value.length}))
   }
 

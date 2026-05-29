@@ -148,8 +148,8 @@ SQL 控制台：
 
 安全与连接：
 
-- SSH host key verification 尚未实现，当前 SSH 连接不能提供完整中间人攻击防护。
-- SSL/TLS 连接选项尚未实现，无法配置 CA、client cert、server name、tls mode 等。
+- SSH host key verification 已实现：校验 `~/.ssh/known_hosts` 并对 profile 钉扎的密钥做信任首次使用；密钥变更会硬失败。仍缺少交互式首次指纹确认对话框。
+- SSL/TLS 连接选项已实现：支持 disabled/preferred/required/verify-ca/verify-identity，以及 CA、客户端证书、server name 配置。
 - 凭据持久化目前只针对 macOS Keychain；Windows Credential Manager 和 Linux Secret Service 尚未实现。
 - profile 数据放在 local storage，缺少迁移机制、导入导出和版本化结构。
 
@@ -170,9 +170,9 @@ SQL 执行：
 
 工程质量：
 
-- Go 后端缺少单元测试和集成测试文件。
+- Go 后端已有纯函数单元测试（`app_test.go`），但仍缺少需要真实数据库的集成测试。
 - 前端缺少组件拆分和测试体系，核心文件 `frontend/src/App.vue` 体量很大。
-- 缺少自动化 CI。
+- 已有自动化 CI（frontend build + Go test）。
 - 缺少正式 LICENSE、CONTRIBUTING、CODE_OF_CONDUCT、SECURITY、CHANGELOG。
 - 缺少截图、发布说明、安装说明和 issue 模板。
 
@@ -457,12 +457,12 @@ SQL 执行：
 
 ### 7.2 安全与凭据
 
-- [ ] P0 实现 SSH host key verification。
-- [ ] P0 在 SSH host key 未验证前，UI 明确提示风险。
-- [ ] P0 实现 MySQL SSL/TLS 基础配置。
-- [ ] P0 增加连接配置中的 TLS 状态展示。
-- [ ] P1 增加 known_hosts 管理。
-- [ ] P1 增加首次连接 host fingerprint 确认流程。
+- [x] P0 实现 SSH host key verification。（system known_hosts + per-profile TOFU 钉扎，密钥变更硬失败）
+- [x] P0 在 SSH host key 未验证前，UI 明确提示风险。（ProfileDialog 展示已信任主机密钥并可重置；密钥变更时连接失败并提示可能的中间人攻击）
+- [x] P0 实现 MySQL SSL/TLS 基础配置。（disabled/preferred/required/verify-ca/verify-identity + CA/客户端证书/server name）
+- [x] P0 增加连接配置中的 TLS 状态展示。（连接状态栏显示 TLS/SSH 标记）
+- [x] P1 增加 known_hosts 管理。（读取 ~/.ssh/known_hosts 校验，host key 变更硬失败）
+- [ ] P1 增加首次连接 host fingerprint 确认流程。（当前为信任首次使用，尚无交互式指纹确认对话框）
 - [ ] P1 增加 Keychain 读写错误的可见提示。
 - [ ] P1 为 Windows Credential Manager 设计接口。
 - [ ] P1 为 Linux Secret Service 设计接口。
@@ -473,9 +473,9 @@ SQL 执行：
 ### 7.3 连接与后端稳定性
 
 - [x] P0 增加主动查询取消。
-- [ ] P0 增加连接错误分类和用户友好错误消息。
-- [ ] P0 为 DSN 构造、identifier quoting、where key 构造增加 Go 单元测试。
-- [ ] P0 为 SSH auth method 选择增加测试。
+- [x] P0 增加连接错误分类和用户友好错误消息。（classifyConnectionError：超时/拒绝/主机不存在/认证/权限/TLS/SSH）
+- [x] P0 为 DSN 构造、identifier quoting、where key 构造增加 Go 单元测试。
+- [x] P0 为 SSH auth method 选择增加测试。
 - [ ] P1 增加连接 keepalive。
 - [ ] P1 增加断线检测和重连入口。
 - [ ] P1 增加连接池状态展示或调试信息。
@@ -568,7 +568,7 @@ SQL 执行：
 ### 7.9 工程化与测试
 
 - [x] P0 添加 CI：Go test、frontend build。
-- [ ] P0 添加基础 Go 单元测试。
+- [x] P0 添加基础 Go 单元测试。（app_test.go 覆盖配置规范化、DSN/TLS、identifier quoting、where 过滤、错误分类、SSH auth/host key）
 - [ ] P0 建立性能基线：启动、schema 展开、表格渲染、查询结果渲染。
 - [ ] P1 拆分 `frontend/src/App.vue`，降低单文件复杂度。
 - [ ] P1 添加前端 lint/format 工具。

@@ -60,6 +60,26 @@ export namespace main {
 	        this.ordinalPos = source["ordinalPos"];
 	    }
 	}
+	export class TLSConfig {
+	    mode: string;
+	    serverName: string;
+	    caCertPath: string;
+	    clientCertPath: string;
+	    clientKeyPath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TLSConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.serverName = source["serverName"];
+	        this.caCertPath = source["caCertPath"];
+	        this.clientCertPath = source["clientCertPath"];
+	        this.clientKeyPath = source["clientKeyPath"];
+	    }
+	}
 	export class SSHConfig {
 	    enabled: boolean;
 	    host: string;
@@ -71,6 +91,7 @@ export namespace main {
 	    privateKeyPath: string;
 	    passphrase: string;
 	    rememberPassphrase: boolean;
+	    knownHostKey: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SSHConfig(source);
@@ -88,6 +109,7 @@ export namespace main {
 	        this.privateKeyPath = source["privateKeyPath"];
 	        this.passphrase = source["passphrase"];
 	        this.rememberPassphrase = source["rememberPassphrase"];
+	        this.knownHostKey = source["knownHostKey"];
 	    }
 	}
 	export class ConnectionConfig {
@@ -100,6 +122,7 @@ export namespace main {
 	    rememberPassword: boolean;
 	    database: string;
 	    ssh: SSHConfig;
+	    tls: TLSConfig;
 	    advanced: AdvancedConfig;
 	
 	    static createFrom(source: any = {}) {
@@ -117,6 +140,7 @@ export namespace main {
 	        this.rememberPassword = source["rememberPassword"];
 	        this.database = source["database"];
 	        this.ssh = this.convertValues(source["ssh"], SSHConfig);
+	        this.tls = this.convertValues(source["tls"], TLSConfig);
 	        this.advanced = this.convertValues(source["advanced"], AdvancedConfig);
 	    }
 	
@@ -144,6 +168,8 @@ export namespace main {
 	    server: string;
 	    user: string;
 	    viaSsh: boolean;
+	    tls: string;
+	    hostKey: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionStatus(source);
@@ -156,6 +182,8 @@ export namespace main {
 	        this.server = source["server"];
 	        this.user = source["user"];
 	        this.viaSsh = source["viaSsh"];
+	        this.tls = source["tls"];
+	        this.hostKey = source["hostKey"];
 	    }
 	}
 	export class DatabaseInfo {
@@ -261,6 +289,7 @@ export namespace main {
 	        this.rememberSshPassphrase = source["rememberSshPassphrase"];
 	    }
 	}
+	
 	export class TableDataRequest {
 	    profileId: string;
 	    database: string;

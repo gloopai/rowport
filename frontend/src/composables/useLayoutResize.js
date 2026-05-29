@@ -1,6 +1,8 @@
 import {computed, ref} from 'vue'
+import {readStoredRaw} from './storage'
 
-const LAYOUT_KEY = 'mysql-gui.layout'
+const LAYOUT_KEY = 'rowport.layout'
+const LEGACY_LAYOUT_KEY = 'mysql-gui.layout'
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
@@ -20,7 +22,7 @@ export function useLayoutResize() {
 
   function loadLayout() {
     try {
-      const layout = JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}')
+      const layout = JSON.parse(readStoredRaw(LAYOUT_KEY, LEGACY_LAYOUT_KEY) || '{}')
       explorerWidth.value = clamp(Number(layout.explorerWidth) || 360, 240, 620)
       servicesHeight.value = clamp(Number(layout.servicesHeight) || 240, 150, 520)
       servicesTreeWidth.value = clamp(Number(layout.servicesTreeWidth) || 240, 160, 520)

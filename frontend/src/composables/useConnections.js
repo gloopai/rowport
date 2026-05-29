@@ -49,7 +49,8 @@ export function useConnections({
     testDraftConnection,
     choosePrivateKeyPath,
     saveProfile,
-    removeProfile
+    removeProfile,
+    pinHostKey
   } = useConnectionProfiles({
     addLog,
     askConfirm,
@@ -133,6 +134,9 @@ export function useConnections({
 
       const connection = cloneProfile(selectedProfile.value)
       const nextStatus = await Connect(connection)
+      if (connection.ssh?.enabled && nextStatus.hostKey) {
+        pinHostKey(profileId, nextStatus.hostKey)
+      }
       setExpanded(true, 'server', selectedProfile.value.id)
       connectedProfileId.value = selectedProfile.value.id
       const nextDatabases = await ListDatabases(profileId)

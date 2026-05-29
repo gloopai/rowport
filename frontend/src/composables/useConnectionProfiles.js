@@ -120,6 +120,21 @@ export function useConnectionProfiles({
     setMessage('服务器信息已保存', 'success', {profile: nextProfile.name})
   }
 
+  function pinHostKey(profileId, hostKey) {
+    const key = (hostKey || '').trim()
+    if (!profileId || !key) return
+    const profile = profiles.value.find((item) => item.id === profileId)
+    if (!profile || profile.ssh?.knownHostKey === key) return
+    const isNew = !profile.ssh?.knownHostKey
+    profiles.value = profiles.value.map((item) => (
+      item.id === profileId
+        ? {...item, ssh: {...item.ssh, knownHostKey: key}}
+        : item
+    ))
+    persistProfiles(profiles.value)
+    addLog(isNew ? 'info' : 'warn', isNew ? 'Trust SSH host key (first use)' : 'Update trusted SSH host key', logContext({profileId}))
+  }
+
   async function removeProfile(profile) {
     addLog('warn', 'Request delete server profile', logContext({profile: profile.name}))
     if (!await askConfirm('删除连接', `确定删除连接 "${profile.name}"？保存的钥匙串密码也会一并删除。`, '删除')) return
@@ -144,6 +159,7 @@ export function useConnectionProfiles({
     testDraftConnection,
     choosePrivateKeyPath,
     saveProfile,
-    removeProfile
+    removeProfile,
+    pinHostKey
   }
 }

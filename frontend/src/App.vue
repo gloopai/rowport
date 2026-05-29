@@ -473,6 +473,10 @@ const databaseOptions = computed(() => [
   {label: 'Database', value: ''},
   ...activeConnection.value.databases.map((database) => ({label: database.name, value: database.name}))
 ])
+function chooseTlsMode(value) {
+  draftProfile.value.tls.mode = value
+  closeCustomSelect()
+}
 onMounted(async () => {
   loadLayout()
   bindSurfaceEvents()
@@ -776,10 +780,13 @@ function elapsedSince(startedAt) {
       :draft-profile="draftProfile"
       :active-tab="profileDialogTab"
       :test-connection-state="testConnectionState"
+      :open-select-id="openSelectId"
       @close="profileDialogOpen = false"
       @set-tab="profileDialogTab = $event"
       @test="testDraftConnection"
       @choose-private-key="choosePrivateKeyPath"
+      @toggle-select="toggleCustomSelect"
+      @choose-tls-mode="chooseTlsMode"
       @submit="saveProfile"
     />
 

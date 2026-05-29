@@ -11,7 +11,15 @@ export function useConnectionState({
   const tableCache = ref({})
   const activeProfileId = computed(() => currentTab.value?.profileId || selectedProfileId.value || connectedProfileId.value)
   const activeConnection = computed(() => getConnectionState(activeProfileId.value))
-  const connectedLabel = computed(() => activeConnection.value.status.connected ? `${activeConnection.value.status.user}@${activeConnection.value.status.server}` : '未连接')
+  const connectedLabel = computed(() => {
+    const next = activeConnection.value.status
+    if (!next.connected) return '未连接'
+    const badges = []
+    if (next.viaSsh) badges.push('SSH')
+    if (next.tls && next.tls !== 'disabled') badges.push('TLS')
+    const suffix = badges.length ? ` · ${badges.join('/')}` : ''
+    return `${next.user}@${next.server}${suffix}`
+  })
 
   function emptyConnectionState() {
     return {status: {connected: false}, databases: [], tableCache: {}}

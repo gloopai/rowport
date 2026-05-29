@@ -1,4 +1,7 @@
 <script setup>
+import CustomSelect from './CustomSelect.vue'
+import {tlsModeOptions} from '../composables/connectionProfileUtils'
+
 defineProps({
   open: {
     type: Boolean,
@@ -19,10 +22,14 @@ defineProps({
   testConnectionState: {
     type: Object,
     required: true
+  },
+  openSelectId: {
+    type: String,
+    default: ''
   }
 })
 
-const emit = defineEmits(['close', 'submit', 'set-tab', 'test', 'choose-private-key'])
+const emit = defineEmits(['close', 'submit', 'set-tab', 'test', 'choose-private-key', 'toggle-select', 'choose-tls-mode'])
 </script>
 
 <template>
@@ -40,6 +47,7 @@ const emit = defineEmits(['close', 'submit', 'set-tab', 'test', 'choose-private-
         <aside class="dialog-tabs">
           <button type="button" :class="{active: activeTab === 'general'}" @click="emit('set-tab', 'general')">常规</button>
           <button type="button" :class="{active: activeTab === 'ssh'}" @click="emit('set-tab', 'ssh')">SSH</button>
+          <button type="button" :class="{active: activeTab === 'tls'}" @click="emit('set-tab', 'tls')">TLS</button>
           <button type="button" :class="{active: activeTab === 'advanced'}" @click="emit('set-tab', 'advanced')">高级</button>
         </aside>
 
@@ -83,6 +91,54 @@ const emit = defineEmits(['close', 'submit', 'set-tab', 'test', 'choose-private-
               <label class="field"><span>私钥口令</span><input v-model="draftProfile.ssh.passphrase" :disabled="!draftProfile.ssh.enabled" type="password" data-native-context></label>
               <label class="check-row"><input v-model="draftProfile.ssh.rememberPassword" :disabled="!draftProfile.ssh.enabled" type="checkbox" data-native-context><span>保存 SSH 密码</span></label>
               <label class="check-row"><input v-model="draftProfile.ssh.rememberPassphrase" :disabled="!draftProfile.ssh.enabled" type="checkbox" data-native-context><span>保存私钥口令</span></label>
+            </div>
+            <div class="host-key-row" :class="{muted: !draftProfile.ssh.enabled}">
+              <div class="host-key-info">
+                <span>已信任主机密钥</span>
+                <code v-if="draftProfile.ssh.knownHostKey">{{ draftProfile.ssh.knownHostKey.slice(0, 48) }}…</code>
+                <em v-else>首次连接时自动记住（信任首次使用）</em>
+              </div>
+              <button
+                type="button"
+                class="ghost"
+                :disabled="!draftProfile.ssh.enabled || !draftProfile.ssh.knownHostKey"
+                @click="draftProfile.ssh.knownHostKey = ''"
+              >重置信任</button>
+            </div>
+          </div>
+
+          <div v-if="activeTab === 'tls'" class="dialog-section">
+            <h3>TLS / SSL</h3>
+            <p>为 MySQL 连接启用加密。校验模式需要服务器使用受信任的证书。</p>
+            <div class="form-grid">
+              <label class="field">
+                <span>TLS 模式</span>
+                <CustomSelect
+                  field
+                  :options="tlsModeOptions"
+                  :value="draftProfile.tls.mode"
+                  fallback="禁用"
+                  :open="openSelectId === 'tlsMode'"
+                  @toggle="emit('toggle-select', 'tlsMode')"
+                  @choose="emit('choose-tls-mode', $event)"
+                />
+              </label>
+              <label class="field">
+                <span>Server Name</span>
+                <input v-model="draftProfile.tls.serverName" :disabled="draftProfile.tls.mode === 'disabled'" placeholder="默认使用主机名" data-native-context>
+              </label>
+              <label class="field wide">
+                <span>CA 证书路径</span>
+                <input v-model="draftProfile.tls.caCertPath" :disabled="draftProfile.tls.mode === 'disabled'" placeholder="校验模式下使用，留空则用系统根证书" data-native-context>
+              </label>
+              <label class="field">
+                <span>客户端证书路径</span>
+                <input v-model="draftProfile.tls.clientCertPath" :disabled="draftProfile.tls.mode === 'disabled'" placeholder="可选（双向 TLS）" data-native-context>
+              </label>
+              <label class="field">
+                <span>客户端私钥路径</span>
+                <input v-model="draftProfile.tls.clientKeyPath" :disabled="draftProfile.tls.mode === 'disabled'" placeholder="可选（双向 TLS）" data-native-context>
+              </label>
             </div>
           </div>
 

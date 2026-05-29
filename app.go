@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +19,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 type App struct {
@@ -31,6 +35,7 @@ type ConnectionSession struct {
 	tunnel    *SSHTunnel
 	config    ConnectionConfig
 	mysqlAddr string
+	hostKey   string
 }
 
 type ConnectionConfig struct {
@@ -43,7 +48,24 @@ type ConnectionConfig struct {
 	RememberPassword bool           `json:"rememberPassword"`
 	Database         string         `json:"database"`
 	SSH              SSHConfig      `json:"ssh"`
+	TLS              TLSConfig      `json:"tls"`
 	Advanced         AdvancedConfig `json:"advanced"`
+}
+
+// TLSConfig controls how the MySQL connection is encrypted.
+//
+// Mode values:
+//   - "" / "disabled":  no TLS
+//   - "preferred":      use TLS if the server supports it, no verification
+//   - "required":       require TLS, no certificate verification (skip-verify)
+//   - "verify-ca":      require TLS and verify the certificate chain (not host name)
+//   - "verify-identity": require TLS and verify chain and server name
+type TLSConfig struct {
+	Mode           string `json:"mode"`
+	ServerName     string `json:"serverName"`
+	CACertPath     string `json:"caCertPath"`
+	ClientCertPath string `json:"clientCertPath"`
+	ClientKeyPath  string `json:"clientKeyPath"`
 }
 
 type AdvancedConfig struct {
@@ -63,6 +85,7 @@ type SSHConfig struct {
 	PrivateKeyPath     string `json:"privateKeyPath"`
 	Passphrase         string `json:"passphrase"`
 	RememberPassphrase bool   `json:"rememberPassphrase"`
+	KnownHostKey       string `json:"knownHostKey"`
 }
 
 type ConnectionStatus struct {
@@ -71,6 +94,8 @@ type ConnectionStatus struct {
 	Server    string `json:"server"`
 	User      string `json:"user"`
 	ViaSSH    bool   `json:"viaSsh"`
+	TLS       string `json:"tls"`
+	HostKey   string `json:"hostKey"`
 }
 
 type DatabaseInfo struct {
@@ -223,6 +248,8 @@ func (a *App) TestConnection(config ConnectionConfig) (ConnectionStatus, error) 
 		Server:    net.JoinHostPort(session.config.Host, session.config.Port),
 		User:      session.config.User,
 		ViaSSH:    session.config.SSH.Enabled,
+		TLS:       tlsModeLabel(session.config.TLS.Mode),
+		HostKey:   session.hostKey,
 	}, nil
 }
 
@@ -236,21 +263,31 @@ func (a *App) openConnection(config ConnectionConfig) (*ConnectionSession, error
 
 	mysqlAddr := net.JoinHostPort(config.Host, config.Port)
 	var tunnel *SSHTunnel
+	var hostKey string
 	if config.SSH.Enabled {
-		nextTunnel, localAddr, err := startSSHTunnel(config.SSH, mysqlAddr)
+		nextTunnel, localAddr, observedHostKey, err := startSSHTunnel(config.SSH, mysqlAddr)
 		if err != nil {
-			return nil, err
+			return nil, classifyConnectionError(err)
 		}
 		tunnel = nextTunnel
 		mysqlAddr = localAddr
+		hostKey = observedHostKey
 	}
 
-	db, err := sql.Open("mysql", buildDSN(config, mysqlAddr))
+	dsn, err := buildDSN(config, mysqlAddr)
 	if err != nil {
 		if tunnel != nil {
 			_ = tunnel.Close()
 		}
 		return nil, err
+	}
+
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		if tunnel != nil {
+			_ = tunnel.Close()
+		}
+		return nil, classifyConnectionError(err)
 	}
 	db.SetMaxOpenConns(config.Advanced.MaxOpenConns)
 	db.SetMaxIdleConns(config.Advanced.MaxIdleConns)
@@ -263,10 +300,10 @@ func (a *App) openConnection(config ConnectionConfig) (*ConnectionSession, error
 		if tunnel != nil {
 			_ = tunnel.Close()
 		}
-		return nil, err
+		return nil, classifyConnectionError(err)
 	}
 
-	return &ConnectionSession{db: db, tunnel: tunnel, config: config, mysqlAddr: mysqlAddr}, nil
+	return &ConnectionSession{db: db, tunnel: tunnel, config: config, mysqlAddr: mysqlAddr, hostKey: hostKey}, nil
 }
 
 func (a *App) LoadCredentials(profileID string) (StoredCredentials, error) {
@@ -440,6 +477,8 @@ func (a *App) StatusForProfile(profileID string) ConnectionStatus {
 		Server:    net.JoinHostPort(session.config.Host, session.config.Port),
 		User:      session.config.User,
 		ViaSSH:    session.config.SSH.Enabled,
+		TLS:       tlsModeLabel(session.config.TLS.Mode),
+		HostKey:   session.hostKey,
 	}
 }
 
@@ -619,7 +658,7 @@ func (a *App) GetTableData(request TableDataRequest) (TableDataResult, error) {
 	if request.Database == "" || request.Table == "" {
 		return TableDataResult{}, errors.New("database and table are required")
 	}
-	if strings.Contains(request.Where, ";") || strings.Contains(request.Where, "--") || strings.Contains(request.Where, "/*") {
+	if hasUnsupportedWhereTokens(request.Where) {
 		return TableDataResult{}, errors.New("where clause contains unsupported tokens")
 	}
 	if request.Page < 1 {
@@ -1017,6 +1056,15 @@ func normalizeConfig(config ConnectionConfig) ConnectionConfig {
 	config.SSH.Port = strings.TrimSpace(config.SSH.Port)
 	config.SSH.User = strings.TrimSpace(config.SSH.User)
 	config.SSH.PrivateKeyPath = strings.TrimSpace(config.SSH.PrivateKeyPath)
+	config.SSH.KnownHostKey = strings.TrimSpace(config.SSH.KnownHostKey)
+	config.TLS.Mode = strings.ToLower(strings.TrimSpace(config.TLS.Mode))
+	config.TLS.ServerName = strings.TrimSpace(config.TLS.ServerName)
+	config.TLS.CACertPath = strings.TrimSpace(config.TLS.CACertPath)
+	config.TLS.ClientCertPath = strings.TrimSpace(config.TLS.ClientCertPath)
+	config.TLS.ClientKeyPath = strings.TrimSpace(config.TLS.ClientKeyPath)
+	if config.TLS.Mode == "" {
+		config.TLS.Mode = "disabled"
+	}
 	if config.Host == "" {
 		config.Host = "127.0.0.1"
 	}
@@ -1062,7 +1110,7 @@ func hydrateRememberedCredentials(config *ConnectionConfig) error {
 	return nil
 }
 
-func buildDSN(config ConnectionConfig, addr string) string {
+func buildDSN(config ConnectionConfig, addr string) (string, error) {
 	mysqlConfig := mysql.NewConfig()
 	mysqlConfig.User = config.User
 	mysqlConfig.Passwd = config.Password
@@ -1077,38 +1125,177 @@ func buildDSN(config ConnectionConfig, addr string) string {
 	mysqlConfig.Params = map[string]string{
 		"charset": "utf8mb4",
 	}
-	return mysqlConfig.FormatDSN()
+
+	tlsParam, err := resolveTLSParam(config)
+	if err != nil {
+		return "", err
+	}
+	if tlsParam != "" {
+		mysqlConfig.TLSConfig = tlsParam
+	}
+	return mysqlConfig.FormatDSN(), nil
 }
 
-func startSSHTunnel(config SSHConfig, remoteAddr string) (*SSHTunnel, string, error) {
+// resolveTLSParam maps the profile TLS mode to a go-sql-driver `tls=` value.
+// Built-in modes use the driver's reserved names; verify-ca and
+// verify-identity register a custom *tls.Config and return its name.
+func resolveTLSParam(config ConnectionConfig) (string, error) {
+	mode := strings.ToLower(strings.TrimSpace(config.TLS.Mode))
+	switch mode {
+	case "", "disabled":
+		return "", nil
+	case "preferred":
+		return "preferred", nil
+	case "required":
+		return "skip-verify", nil
+	case "verify-ca", "verify-identity":
+		tlsConf, err := buildTLSClientConfig(config, mode)
+		if err != nil {
+			return "", err
+		}
+		name := "rowport-tls-" + tlsConfigName(config)
+		if err := mysql.RegisterTLSConfig(name, tlsConf); err != nil {
+			return "", fmt.Errorf("register tls config: %w", err)
+		}
+		return name, nil
+	default:
+		return "", fmt.Errorf("unknown tls mode %q", config.TLS.Mode)
+	}
+}
+
+func buildTLSClientConfig(config ConnectionConfig, mode string) (*tls.Config, error) {
+	tlsConf := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		ServerName: config.TLS.ServerName,
+	}
+	if tlsConf.ServerName == "" {
+		tlsConf.ServerName = config.Host
+	}
+
+	if config.TLS.CACertPath != "" {
+		pem, err := os.ReadFile(config.TLS.CACertPath)
+		if err != nil {
+			return nil, fmt.Errorf("read CA certificate: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, errors.New("failed to parse CA certificate")
+		}
+		tlsConf.RootCAs = pool
+	}
+
+	if config.TLS.ClientCertPath != "" || config.TLS.ClientKeyPath != "" {
+		cert, err := tls.LoadX509KeyPair(config.TLS.ClientCertPath, config.TLS.ClientKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("load client certificate: %w", err)
+		}
+		tlsConf.Certificates = []tls.Certificate{cert}
+	}
+
+	if mode == "verify-ca" {
+		// Verify the certificate chain but not the server host name.
+		rootCAs := tlsConf.RootCAs
+		tlsConf.InsecureSkipVerify = true
+		tlsConf.VerifyConnection = func(state tls.ConnectionState) error {
+			if len(state.PeerCertificates) == 0 {
+				return errors.New("server presented no certificate")
+			}
+			opts := x509.VerifyOptions{Roots: rootCAs, Intermediates: x509.NewCertPool()}
+			for _, cert := range state.PeerCertificates[1:] {
+				opts.Intermediates.AddCert(cert)
+			}
+			_, err := state.PeerCertificates[0].Verify(opts)
+			return err
+		}
+	}
+
+	return tlsConf, nil
+}
+
+func tlsConfigName(config ConnectionConfig) string {
+	id := config.ID
+	if id == "" {
+		id = defaultProfileID(config)
+	}
+	if id == "" {
+		id = config.Host
+	}
+	return strings.NewReplacer(" ", "_", ":", "_", "@", "_").Replace(id)
+}
+
+func tlsModeLabel(mode string) string {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		return "disabled"
+	}
+	return mode
+}
+
+// classifyConnectionError turns low-level connection failures into messages
+// that are actionable for the user while preserving the original error.
+func classifyConnectionError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) {
+		switch mysqlErr.Number {
+		case 1045:
+			return fmt.Errorf("authentication failed: check the user name and password (%w)", err)
+		case 1049:
+			return fmt.Errorf("unknown database: the default database does not exist (%w)", err)
+		case 1044, 1142:
+			return fmt.Errorf("permission denied: this MySQL user lacks access (%w)", err)
+		}
+	}
+
+	msg := strings.ToLower(err.Error())
+	switch {
+	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(msg, "i/o timeout") || strings.Contains(msg, "timeout"):
+		return fmt.Errorf("connection timed out: the server is unreachable or blocked by a firewall (%w)", err)
+	case strings.Contains(msg, "connection refused"):
+		return fmt.Errorf("connection refused: nothing is listening on that host and port (%w)", err)
+	case strings.Contains(msg, "no such host") || strings.Contains(msg, "lookup"):
+		return fmt.Errorf("host not found: check the host name (%w)", err)
+	case strings.Contains(msg, "x509") || strings.Contains(msg, "certificate") || strings.Contains(msg, "tls"):
+		return fmt.Errorf("TLS error: %w", err)
+	case strings.Contains(msg, "ssh"):
+		return fmt.Errorf("SSH tunnel error: %w", err)
+	}
+	return err
+}
+
+func startSSHTunnel(config SSHConfig, remoteAddr string) (*SSHTunnel, string, string, error) {
 	if config.Host == "" || config.User == "" {
-		return nil, "", errors.New("ssh host and user are required")
+		return nil, "", "", errors.New("ssh host and user are required")
 	}
 
 	authMethods, err := sshAuthMethods(config)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	if len(authMethods) == 0 {
-		return nil, "", errors.New("ssh password or private key is required")
+		return nil, "", "", errors.New("ssh password or private key is required")
 	}
 
+	var observedHostKey string
 	sshConfig := &ssh.ClientConfig{
 		User:            config.User,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: buildHostKeyCallback(config, &observedHostKey),
 		Timeout:         12 * time.Second,
 	}
 
 	client, err := ssh.Dial("tcp", net.JoinHostPort(config.Host, config.Port), sshConfig)
 	if err != nil {
-		return nil, "", fmt.Errorf("ssh connect failed: %w", err)
+		return nil, "", "", fmt.Errorf("ssh connect failed: %w", err)
 	}
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		_ = client.Close()
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	tunnel := &SSHTunnel{
@@ -1118,7 +1305,61 @@ func startSSHTunnel(config SSHConfig, remoteAddr string) (*SSHTunnel, string, er
 		done:     make(chan struct{}),
 	}
 	go tunnel.accept()
-	return tunnel, listener.Addr().String(), nil
+	return tunnel, listener.Addr().String(), observedHostKey, nil
+}
+
+// buildHostKeyCallback verifies the SSH server host key. It first consults the
+// user's ~/.ssh/known_hosts (a changed key there is a hard failure), then falls
+// back to a per-profile pinned key using trust-on-first-use: an empty pin is
+// accepted and recorded, a matching pin passes, and a mismatching pin fails.
+func buildHostKeyCallback(config SSHConfig, observed *string) ssh.HostKeyCallback {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		if observed != nil {
+			*observed = hostKeyString(key)
+		}
+
+		if systemCallback, err := systemKnownHostsCallback(); err == nil && systemCallback != nil {
+			switch verifyErr := systemCallback(hostname, remote, key); {
+			case verifyErr == nil:
+				return nil
+			default:
+				var keyErr *knownhosts.KeyError
+				if errors.As(verifyErr, &keyErr) && len(keyErr.Want) > 0 {
+					return fmt.Errorf("ssh host key mismatch for %s: the key differs from ~/.ssh/known_hosts (possible man-in-the-middle); fingerprint %s", hostname, ssh.FingerprintSHA256(key))
+				}
+				// Host absent from known_hosts (or unreadable): fall back to the pin.
+			}
+		}
+
+		pinned := strings.TrimSpace(config.KnownHostKey)
+		if pinned == "" {
+			return nil
+		}
+		if hostKeysEqual(pinned, key) {
+			return nil
+		}
+		return fmt.Errorf("ssh host key mismatch for %s: the key changed since it was trusted (possible man-in-the-middle); fingerprint %s", hostname, ssh.FingerprintSHA256(key))
+	}
+}
+
+func systemKnownHostsCallback() (ssh.HostKeyCallback, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(home, ".ssh", "known_hosts")
+	if _, err := os.Stat(path); err != nil {
+		return nil, nil
+	}
+	return knownhosts.New(path)
+}
+
+func hostKeyString(key ssh.PublicKey) string {
+	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(key)))
+}
+
+func hostKeysEqual(pinned string, key ssh.PublicKey) bool {
+	return strings.TrimSpace(pinned) == hostKeyString(key)
 }
 
 func sshAuthMethods(config SSHConfig) ([]ssh.AuthMethod, error) {
@@ -1226,6 +1467,12 @@ func runQuery(ctx context.Context, conn *sql.Conn, query string, limit int) (Que
 
 	result := QueryResult{Columns: columns}
 	for rows.Next() {
+		// Read one extra row beyond the limit so truncation only triggers
+		// when there genuinely are more rows than requested.
+		if len(result.Rows) >= limit {
+			result.Truncated = true
+			break
+		}
 		values := make([]sql.RawBytes, len(columns))
 		scanArgs := make([]any, len(columns))
 		for i := range values {
@@ -1244,10 +1491,6 @@ func runQuery(ctx context.Context, conn *sql.Conn, query string, limit int) (Que
 			row[i] = string(value)
 		}
 		result.Rows = append(result.Rows, row)
-		if len(result.Rows) >= limit {
-			result.Truncated = true
-			break
-		}
 	}
 	if err := rows.Err(); err != nil {
 		return QueryResult{}, err
@@ -1255,7 +1498,7 @@ func runQuery(ctx context.Context, conn *sql.Conn, query string, limit int) (Que
 
 	result.RowsAffected = int64(len(result.Rows))
 	if result.Truncated {
-		result.Message = "Showing first 1000 rows"
+		result.Message = fmt.Sprintf("Showing first %d rows", limit)
 	} else {
 		result.Message = "Query returned rows"
 	}
@@ -1320,23 +1563,54 @@ func quoteIdentifier(value string) string {
 	return "`" + strings.ReplaceAll(value, "`", "``") + "`"
 }
 
+// hasUnsupportedWhereTokens rejects WHERE fragments that could be used to
+// chain extra statements or smuggle SQL comments. This is a defensive guard,
+// not a full parser: the fragment is still interpolated into the query, so it
+// only blocks the obvious statement-breaking and comment tokens.
+func hasUnsupportedWhereTokens(where string) bool {
+	if strings.ContainsRune(where, '\x00') {
+		return true
+	}
+	for _, token := range []string{";", "--", "/*", "*/", "#"} {
+		if strings.Contains(where, token) {
+			return true
+		}
+	}
+	return false
+}
+
+const keychainService = "rowport"
+
+// legacyKeychainService is the service name used before the project was
+// renamed. Reads fall back to it so secrets saved by older builds remain
+// accessible until they are re-saved under the current service name.
+const legacyKeychainService = "mysql-gui"
+
 func keychainAccount(profileID string, key string) string {
 	return profileID + ":" + key
 }
 
 func readKeychainSecret(profileID string, key string) string {
-	out, err := exec.Command("security", "find-generic-password", "-s", "mysql-gui", "-a", keychainAccount(profileID, key), "-w").Output()
-	if err != nil {
-		return ""
+	if value, ok := readKeychainSecretForService(keychainService, profileID, key); ok {
+		return value
 	}
-	return strings.TrimRight(string(out), "\r\n")
+	value, _ := readKeychainSecretForService(legacyKeychainService, profileID, key)
+	return value
+}
+
+func readKeychainSecretForService(service string, profileID string, key string) (string, bool) {
+	out, err := exec.Command("security", "find-generic-password", "-s", service, "-a", keychainAccount(profileID, key), "-w").Output()
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimRight(string(out), "\r\n"), true
 }
 
 func writeKeychainSecret(profileID string, key string, value string) error {
 	if value == "" {
 		return nil
 	}
-	cmd := exec.Command("security", "add-generic-password", "-s", "mysql-gui", "-a", keychainAccount(profileID, key), "-w", value, "-U")
+	cmd := exec.Command("security", "add-generic-password", "-s", keychainService, "-a", keychainAccount(profileID, key), "-w", value, "-U")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("save credential to keychain: %w: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -1344,5 +1618,6 @@ func writeKeychainSecret(profileID string, key string, value string) error {
 }
 
 func deleteKeychainSecret(profileID string, key string) {
-	_ = exec.Command("security", "delete-generic-password", "-s", "mysql-gui", "-a", keychainAccount(profileID, key)).Run()
+	_ = exec.Command("security", "delete-generic-password", "-s", keychainService, "-a", keychainAccount(profileID, key)).Run()
+	_ = exec.Command("security", "delete-generic-password", "-s", legacyKeychainService, "-a", keychainAccount(profileID, key)).Run()
 }
