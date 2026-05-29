@@ -103,6 +103,8 @@ wails dev -compiler "$PWD/scripts/go-wails"
 
 ## Build
 
+See [docs/RELEASE.md](docs/RELEASE.md) for the full build and release guide, including why the Wails compiler wrapper exists and the release checklist.
+
 The local macOS SDK used by this project needs `UniformTypeIdentifiers` linked for the current Wails version, so use the wrapper script:
 
 ```sh

@@ -103,6 +103,8 @@ wails dev -compiler "$PWD/scripts/go-wails"
 
 ## 构建
 
+完整的构建与发布指南（含 Wails 包装脚本的原因和发布检查清单）见 [docs/RELEASE.md](docs/RELEASE.md)。
+
 当前 Wails 版本在本项目使用的本地 macOS SDK 下需要链接 `UniformTypeIdentifiers`，因此请使用包装脚本：
 
 ```sh

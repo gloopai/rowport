@@ -452,7 +452,7 @@ SQL 执行：
 - [x] P0 在 README 中明确 RowPort 的差异化定位：fast, restrained, local-first MySQL client。
 - [ ] P1 添加截图或 GIF，展示连接、数据库树、表数据和 SQL 控制台。
 - [ ] P1 添加 FAQ：连接失败、Keychain、SSH、Wails 编译问题。
-- [ ] P1 添加 release checklist。
+- [x] P1 添加 release checklist。（见 docs/RELEASE.md）
 - [ ] P2 添加架构文档，说明 Wails、Go 后端、Vue 前端和本地存储边界。
 
 ### 7.2 安全与凭据
@@ -581,8 +581,8 @@ SQL 执行：
 
 ### 7.10 打包与发布
 
-- [ ] P0 明确本地 Wails wrapper 脚本的原因和适用范围。
-- [ ] P0 增加 macOS release 构建说明。
+- [x] P0 明确本地 Wails wrapper 脚本的原因和适用范围。（见 docs/RELEASE.md）
+- [x] P0 增加 macOS release 构建说明。（见 docs/RELEASE.md）
 - [ ] P1 增加 GitHub Actions release workflow。
 - [ ] P1 生成 macOS artifact。
 - [ ] P1 生成 Windows artifact。
