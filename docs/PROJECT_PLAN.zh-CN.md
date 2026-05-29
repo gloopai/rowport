@@ -569,7 +569,7 @@ SQL 执行：
 
 - [x] P0 添加 CI：Go test、frontend build。
 - [x] P0 添加基础 Go 单元测试。（app_test.go 覆盖配置规范化、DSN/TLS、identifier quoting、where 过滤、错误分类、SSH auth/host key）
-- [ ] P0 建立性能基线：启动、schema 展开、表格渲染、查询结果渲染。
+- [x] P0 建立性能基线：启动、schema 展开、表格渲染、查询结果渲染。（操作日志按 perf 标签聚合 startup/connect/schema/tableLoad/query 的最近/平均/峰值，状态栏可见，见 docs/PERFORMANCE.md）
 - [ ] P1 拆分 `frontend/src/App.vue`，降低单文件复杂度。
 - [ ] P1 添加前端 lint/format 工具。
 - [ ] P1 添加前端单元测试。

@@ -152,7 +152,7 @@ export function useSchemaExplorer({
       updateConnectionState(profileId, {
         tableCache: {...getConnectionState(profileId).tableCache, [database]: tables}
       })
-      addLog('success', 'Tables loaded', logContext({profileId, database, tables: tables.length, elapsedMs: elapsedSince(startedAt)}))
+      addLog('success', 'Tables loaded', logContext({profileId, database, tables: tables.length, elapsedMs: elapsedSince(startedAt), perf: 'schema'}))
     } catch (error) {
       setMessage(errorMessage(error), 'error', logContext({operation: 'refreshTables', database}))
     }

@@ -56,6 +56,7 @@ const {
   logSearch,
   latestLog,
   visibleLogs,
+  perfSummary,
   addLog,
   clearLogs,
   copyVisibleLogs,
@@ -477,6 +478,12 @@ function chooseTlsMode(value) {
   draftProfile.value.tls.mode = value
   closeCustomSelect()
 }
+const perfStatusText = computed(() => perfSummary.value
+  .map((metric) => `${metric.label} ${metric.lastMs}ms`)
+  .join(' · '))
+const perfStatusTitle = computed(() => perfSummary.value
+  .map((metric) => `${metric.label}：最近 ${metric.lastMs}ms · 平均 ${metric.avgMs}ms · 峰值 ${metric.maxMs}ms · ${metric.count} 次`)
+  .join('\n'))
 onMounted(async () => {
   loadLayout()
   bindSurfaceEvents()
@@ -486,7 +493,7 @@ onMounted(async () => {
     setExpanded(true, 'server', selectedProfileId.value)
   }
   observeQueryToolbar()
-  addLog('info', 'Application ready', logContext({elapsedMs: elapsedSince(appStartedAt), profiles: profiles.value.length}))
+  addLog('info', 'Application ready', logContext({elapsedMs: elapsedSince(appStartedAt), profiles: profiles.value.length, perf: 'startup'}))
 })
 
 onBeforeUnmount(() => {
@@ -767,6 +774,7 @@ function elapsedSince(startedAt) {
         <span v-if="selectedDatabase">› {{ selectedDatabase }}</span>
         <span v-if="selectedTable">› {{ selectedTable }}</span>
         <span class="statusbar-fill"></span>
+        <span v-if="perfStatusText" class="statusbar-perf" :title="perfStatusTitle">⏱ {{ perfStatusText }}</span>
         <span v-if="latestLog">{{ latestLog.level }}: {{ latestLog.text }}</span>
         <span>{{ tableData.rows?.length || 0 }} rows</span>
         <span>UTF-8</span>

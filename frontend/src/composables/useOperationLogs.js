@@ -9,6 +9,16 @@ export const logLevelOptions = [
   {label: 'Debug', value: 'debug'}
 ]
 
+// Performance categories tracked from timed operation logs. A log carrying a
+// `perf` context tag plus an elapsed time is folded into a running baseline.
+export const perfCategories = [
+  {key: 'startup', label: '启动'},
+  {key: 'connect', label: '连接'},
+  {key: 'schema', label: 'schema'},
+  {key: 'tableLoad', label: '表数据'},
+  {key: 'query', label: '查询'}
+]
+
 export function useOperationLogs({
   copyText,
   downloadText,
@@ -20,6 +30,22 @@ export function useOperationLogs({
   const servicesPanelRef = ref(null)
   const logLevelFilter = ref('all')
   const logSearch = ref('')
+  const perfMetrics = ref({})
+
+  const perfSummary = computed(() => perfCategories
+    .map(({key, label}) => {
+      const sample = perfMetrics.value[key]
+      if (!sample || !sample.count) return null
+      return {
+        key,
+        label,
+        count: sample.count,
+        lastMs: sample.lastMs,
+        avgMs: Math.round(sample.totalMs / sample.count),
+        maxMs: sample.maxMs
+      }
+    })
+    .filter(Boolean))
 
   const latestLog = computed(() => operationLogs.value[operationLogs.value.length - 1])
   const visibleLogs = computed(() => {
@@ -40,13 +66,32 @@ export function useOperationLogs({
       context
     }
     operationLogs.value = [...operationLogs.value.slice(-499), entry]
+    recordPerfSample(context)
     nextTick(() => {
       servicesPanelRef.value?.scrollToBottom()
     })
   }
 
+  function recordPerfSample(context) {
+    const category = context?.perf
+    if (!category) return
+    const ms = Number(context.totalElapsedMs ?? context.elapsedMs)
+    if (!Number.isFinite(ms)) return
+    const previous = perfMetrics.value[category] || {count: 0, lastMs: 0, totalMs: 0, maxMs: 0}
+    perfMetrics.value = {
+      ...perfMetrics.value,
+      [category]: {
+        count: previous.count + 1,
+        lastMs: ms,
+        totalMs: previous.totalMs + ms,
+        maxMs: Math.max(previous.maxMs, ms)
+      }
+    }
+  }
+
   function clearLogs() {
     operationLogs.value = []
+    perfMetrics.value = {}
     addLog('info', 'Operation log cleared')
   }
 
@@ -91,6 +136,8 @@ export function useOperationLogs({
     logSearch,
     latestLog,
     visibleLogs,
+    perfMetrics,
+    perfSummary,
     addLog,
     clearLogs,
     copyVisibleLogs,

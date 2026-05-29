@@ -181,7 +181,7 @@ export function useTableData({
       })
       selectedRowIndex.value = -1
       resetGridScroll('data')
-      addLog('success', 'Table page loaded', logContext({page: tableData.value.page, rows: tableData.value.rows.length, total: tableData.value.total, elapsedMs: elapsedSince(startedAt)}))
+      addLog('success', 'Table page loaded', logContext({page: tableData.value.page, rows: tableData.value.rows.length, total: tableData.value.total, elapsedMs: elapsedSince(startedAt), perf: 'tableLoad'}))
     } catch (error) {
       setMessage(errorMessage(error), 'error', logContext({operation: 'loadTablePage'}))
     } finally {

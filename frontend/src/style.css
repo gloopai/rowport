@@ -1110,6 +1110,12 @@ body.is-resizing * {
     flex: 1;
 }
 
+.statusbar-perf {
+    color: #8fb6e8;
+    white-space: nowrap;
+    cursor: default;
+}
+
 .empty-workspace {
     display: grid;
     place-items: center;

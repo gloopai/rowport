@@ -171,7 +171,8 @@ export function useSqlConsole({
         totalElapsedMs: elapsedSince(startedAt),
         statements: completed,
         rows: lastResult?.rows?.length || 0,
-        affected: lastResult?.rowsAffected || 0
+        affected: lastResult?.rowsAffected || 0,
+        perf: 'query'
       }))
       if (selectedTable.value) await loadTablePage(tableData.value.page)
     } catch (error) {

@@ -156,7 +156,7 @@ export function useConnections({
       if (selectedDatabase.value && selectedTable.value) {
         openDataTab(profileId, selectedDatabase.value, selectedTable.value)
       }
-      setMessage('连接成功', 'success', logContext({profileId, databases: nextDatabases.length, elapsedMs: elapsedSince(startedAt)}))
+      setMessage('连接成功', 'success', logContext({profileId, databases: nextDatabases.length, elapsedMs: elapsedSince(startedAt), perf: 'connect'}))
     } catch (error) {
       suppressDatabaseWatch.value = false
       setMessage(errorMessage(error), 'error', logContext({operation: 'connect'}))
