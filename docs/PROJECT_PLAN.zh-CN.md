@@ -571,7 +571,7 @@ SQL 执行：
 - [x] P0 添加基础 Go 单元测试。（app_test.go 覆盖配置规范化、DSN/TLS、identifier quoting、where 过滤、错误分类、SSH auth/host key）
 - [x] P0 建立性能基线：启动、schema 展开、表格渲染、查询结果渲染。（操作日志按 perf 标签聚合 startup/connect/schema/tableLoad/query 的最近/平均/峰值，状态栏可见，见 docs/PERFORMANCE.md）
 - [x] P1 拆分 `app.go`，按连接/SSH/schema/数据/凭据分文件。（app.go 1691 行 → 463 行，新增 connection.go/ssh.go/schema.go/tabledata.go/credentials.go）
-- [ ] P1 拆分 `frontend/src/App.vue`，降低单文件复杂度。
+- [~] P1 拆分 `frontend/src/App.vue`，降低单文件复杂度。（保守抽取：StatusBar.vue 组件 + appHelpers.js 纯函数模块；后续可继续抽取对话框聚合层）
 - [ ] P1 添加前端 lint/format 工具。
 - [ ] P1 添加前端单元测试。
 - [ ] P1 添加端到端冒烟测试。

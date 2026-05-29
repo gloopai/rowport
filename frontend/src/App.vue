@@ -17,8 +17,10 @@ import SqlEditorToolbar from './components/SqlEditorToolbar.vue'
 import SqlResultPane from './components/SqlResultPane.vue'
 import SqlSidePanel from './components/SqlSidePanel.vue'
 import SqlTextEditor from './components/SqlTextEditor.vue'
+import StatusBar from './components/StatusBar.vue'
 import StructureView from './components/StructureView.vue'
 import TableContextMenu from './components/TableContextMenu.vue'
+import {elapsedSince, formatLogTime, hasRuntime, newId, perfStart} from './composables/appHelpers'
 import {useAppFeedback} from './composables/useAppFeedback'
 import {useAppSurface} from './composables/useAppSurface'
 import {useConnections} from './composables/useConnections'
@@ -35,9 +37,6 @@ import {useVirtualGrid, virtualRows, VIRTUAL_ROW_HEIGHT} from './composables/use
 import {useWorkspaceTabs} from './composables/useWorkspaceTabs'
 
 const appStartedAt = performance.now()
-
-const hasRuntime = () => Boolean(window.go?.main?.App)
-const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
 const selectedDatabase = ref('')
 const selectedTable = ref('')
@@ -519,18 +518,6 @@ function logContext(extra = {}) {
   }
 }
 
-function formatLogTime(date) {
-  return date.toLocaleTimeString([], {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'})
-}
-
-function perfStart() {
-  return performance.now()
-}
-
-function elapsedSince(startedAt) {
-  return Math.max(0, Math.round(performance.now() - startedAt))
-}
-
 </script>
 
 <template>
@@ -769,19 +756,15 @@ function elapsedSince(startedAt) {
         @reset-services-tree="resetPaneSize('servicesTree')"
       />
 
-      <footer class="statusbar">
-        <span>Database</span>
-        <span>›</span>
-        <span>{{ selectedProfile?.name || '@localhost' }}</span>
-        <span v-if="selectedDatabase">› {{ selectedDatabase }}</span>
-        <span v-if="selectedTable">› {{ selectedTable }}</span>
-        <span class="statusbar-fill"></span>
-        <span v-if="perfStatusText" class="statusbar-perf" :title="perfStatusTitle">⏱ {{ perfStatusText }}</span>
-        <span v-if="latestLog">{{ latestLog.level }}: {{ latestLog.text }}</span>
-        <span>{{ tableData.rows?.length || 0 }} rows</span>
-        <span>UTF-8</span>
-        <span>4 spaces</span>
-      </footer>
+      <StatusBar
+        :profile-name="selectedProfile?.name || ''"
+        :selected-database="selectedDatabase"
+        :selected-table="selectedTable"
+        :perf-status-text="perfStatusText"
+        :perf-status-title="perfStatusTitle"
+        :latest-log="latestLog"
+        :row-count="tableData.rows?.length || 0"
+      />
     </main>
 
     <ProfileDialog
