@@ -31,7 +31,10 @@ export function useQueryHistory({
     })
     return scored
       .filter((item) => !search || `${item.sql} ${item.database} ${item.profileName} ${item.status}`.toLowerCase().includes(search))
-      .sort((a, b) => Number(b.favorite) - Number(a.favorite) || Number(b.sameContext) - Number(a.sameContext) || String(b.executedAt).localeCompare(String(a.executedAt)))
+      .sort(
+        (a, b) =>
+          Number(b.favorite) - Number(a.favorite) || Number(b.sameContext) - Number(a.sameContext) || String(b.executedAt).localeCompare(String(a.executedAt))
+      )
       .slice(0, 60)
   })
 
@@ -41,11 +44,11 @@ export function useQueryHistory({
   const currentHistoryItem = computed(() => {
     const normalizedSql = normalizeResultSql(currentSqlText() || query.value)
     if (!normalizedSql) return null
-    return queryHistory.value.find((item) => (
-      item.normalizedSql === normalizedSql &&
-      item.profileId === activeProfileId.value &&
-      item.database === (selectedDatabase.value || '')
-    )) || null
+    return (
+      queryHistory.value.find(
+        (item) => item.normalizedSql === normalizedSql && item.profileId === activeProfileId.value && item.database === (selectedDatabase.value || '')
+      ) || null
+    )
   })
   const savedHistoryItem = computed(() => selectedHistoryItem.value || currentHistoryItem.value)
 
@@ -120,13 +123,9 @@ export function useQueryHistory({
     const database = selectedDatabase.value || ''
     const mode = meta.mode || 'query'
     const scope = meta.scope || 'current'
-    const existingIndex = queryHistory.value.findIndex((item) => (
-      item.normalizedSql === normalizedSql &&
-      item.profileId === profileId &&
-      item.database === database &&
-      item.mode === mode &&
-      item.scope === scope
-    ))
+    const existingIndex = queryHistory.value.findIndex(
+      (item) => item.normalizedSql === normalizedSql && item.profileId === profileId && item.database === database && item.mode === mode && item.scope === scope
+    )
     const existing = existingIndex >= 0 ? queryHistory.value[existingIndex] : null
     const item = {
       id: existing?.id || newId(),
@@ -169,7 +168,7 @@ export function useQueryHistory({
       target = queryHistory.value[0]
     }
     if (!target) return
-    queryHistory.value = queryHistory.value.map((entry) => entry.id === target.id ? {...entry, favorite: !entry.favorite} : entry)
+    queryHistory.value = queryHistory.value.map((entry) => (entry.id === target.id ? {...entry, favorite: !entry.favorite} : entry))
     selectedHistoryId.value = target.id
     persistQueryHistory()
   }

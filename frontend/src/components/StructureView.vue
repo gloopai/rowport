@@ -1,4 +1,6 @@
 <script setup>
+const nullLabel = '<null>'
+
 defineProps({
   currentTab: {
     type: Object,
@@ -37,10 +39,31 @@ const emit = defineEmits(['insertDdlTemplate'])
   <div class="data-surface">
     <div class="filter-row">
       <span>{{ structureTitle }}</span>
-      <button :disabled="!selectedTable" @click="emit('insertDdlTemplate', 'addColumn', selectedObject.database, selectedObject.table, selectedObject.profileId)">+ Column</button>
-      <button :disabled="!selectedTable" @click="emit('insertDdlTemplate', 'createIndex', selectedObject.database, selectedObject.table, selectedObject.profileId)">+ Index</button>
-      <button :disabled="!selectedTable" @click="emit('insertDdlTemplate', 'renameTable', selectedObject.database, selectedObject.table, selectedObject.profileId)">Rename</button>
-      <button class="danger-inline" :disabled="!selectedTable" @click="emit('insertDdlTemplate', 'dropTable', selectedObject.database, selectedObject.table, selectedObject.profileId)">Drop</button>
+      <button
+        :disabled="!selectedTable"
+        @click="emit('insertDdlTemplate', 'addColumn', selectedObject.database, selectedObject.table, selectedObject.profileId)"
+      >
+        + Column
+      </button>
+      <button
+        :disabled="!selectedTable"
+        @click="emit('insertDdlTemplate', 'createIndex', selectedObject.database, selectedObject.table, selectedObject.profileId)"
+      >
+        + Index
+      </button>
+      <button
+        :disabled="!selectedTable"
+        @click="emit('insertDdlTemplate', 'renameTable', selectedObject.database, selectedObject.table, selectedObject.profileId)"
+      >
+        Rename
+      </button>
+      <button
+        class="danger-inline"
+        :disabled="!selectedTable"
+        @click="emit('insertDdlTemplate', 'dropTable', selectedObject.database, selectedObject.table, selectedObject.profileId)"
+      >
+        Drop
+      </button>
       <div class="pager">
         <span>{{ structureRows.length }} items</span>
       </div>
@@ -58,7 +81,7 @@ const emit = defineEmits(['insertDdlTemplate'])
         <tbody>
           <tr v-for="(row, rowIndex) in structureRows" :key="rowIndex">
             <td class="row-num">{{ rowIndex + 1 }}</td>
-            <td v-for="(value, cellIndex) in row" :key="cellIndex">{{ value || '<null>' }}</td>
+            <td v-for="(value, cellIndex) in row" :key="cellIndex">{{ value || nullLabel }}</td>
           </tr>
         </tbody>
       </table>
@@ -143,7 +166,7 @@ button:disabled {
   overflow: auto;
   color: #cfd7e6;
   background: #1f2023;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-size: 13px;
   line-height: 22px;
   white-space: pre;
@@ -154,7 +177,7 @@ button:disabled {
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-size: 13px;
 }
 

@@ -1,20 +1,8 @@
 import {ref} from 'vue'
-import {
-  CancelQuery,
-  ExecuteWithID,
-  OpenSQLFile
-} from '../../wailsjs/go/main/App'
+import {CancelQuery, ExecuteWithID, OpenSQLFile} from '../../wailsjs/go/main/App'
 import {useQueryHistory} from './useQueryHistory'
 import {useResultTabs} from './useResultTabs'
-import {
-  compactSql,
-  currentStatementAt,
-  explainSql,
-  isDangerousSql,
-  isSchemaChangingSql,
-  normalizeResultSql,
-  splitSqlStatements
-} from './sqlUtils'
+import {compactSql, currentStatementAt, explainSql, isDangerousSql, isSchemaChangingSql, normalizeResultSql, splitSqlStatements} from './sqlUtils'
 
 export function useSqlConsole({
   activeProfileId,
@@ -111,7 +99,10 @@ export function useSqlConsole({
       return
     }
     const dangerousSql = mode === 'query' ? execution.statements.find((statement) => isDangerousSql(statement)) : ''
-    if (dangerousSql && !await askConfirm('确认执行 SQL', '检测到 UPDATE 或 DELETE 语句没有 WHERE 条件。这个操作可能影响整张表，确定继续执行？', '继续执行')) {
+    if (
+      dangerousSql &&
+      !(await askConfirm('确认执行 SQL', '检测到 UPDATE 或 DELETE 语句没有 WHERE 条件。这个操作可能影响整张表，确定继续执行？', '继续执行'))
+    ) {
       appendLog('warn', 'SQL execution cancelled by safety guard', logContext({scope: execution.scope, sql: dangerousSql}))
       return
     }
@@ -126,14 +117,18 @@ export function useSqlConsole({
         const executableSql = mode === 'explain' ? explainSql(sourceSql) : sourceSql
         const queryID = newId()
         runningQueryId.value = queryID
-        appendLog('info', mode === 'explain' ? 'Explain SQL' : 'Execute SQL', logContext({
-          profileId,
-          database: selectedDatabase.value,
-          queryId: queryID,
-          scope: execution.scope,
-          statement: execution.statements.length > 1 ? `${index + 1}/${execution.statements.length}` : '',
-          sql: executableSql
-        }))
+        appendLog(
+          'info',
+          mode === 'explain' ? 'Explain SQL' : 'Execute SQL',
+          logContext({
+            profileId,
+            database: selectedDatabase.value,
+            queryId: queryID,
+            scope: execution.scope,
+            statement: execution.statements.length > 1 ? `${index + 1}/${execution.statements.length}` : '',
+            sql: executableSql
+          })
+        )
 
         if (!hasRuntime()) {
           lastResult = {
@@ -155,7 +150,7 @@ export function useSqlConsole({
         }
         completed += 1
       }
-      const messageText = execution.statements.length > 1 ? `执行完成：${completed}/${execution.statements.length} 条 SQL` : (lastResult?.message || '执行完成')
+      const messageText = execution.statements.length > 1 ? `执行完成：${completed}/${execution.statements.length} 条 SQL` : lastResult?.message || '执行完成'
       historyApi.recordQueryHistory(execution.historySql, {
         mode,
         scope: execution.scope,
@@ -165,15 +160,19 @@ export function useSqlConsole({
         elapsedMs: elapsedSince(startedAt),
         statements: completed
       })
-      setMessage(messageText, 'success', logContext({
-        scope: execution.scope,
-        elapsedMs: lastResult?.elapsedMs || 0,
-        totalElapsedMs: elapsedSince(startedAt),
-        statements: completed,
-        rows: lastResult?.rows?.length || 0,
-        affected: lastResult?.rowsAffected || 0,
-        perf: 'query'
-      }))
+      setMessage(
+        messageText,
+        'success',
+        logContext({
+          scope: execution.scope,
+          elapsedMs: lastResult?.elapsedMs || 0,
+          totalElapsedMs: elapsedSince(startedAt),
+          statements: completed,
+          rows: lastResult?.rows?.length || 0,
+          affected: lastResult?.rowsAffected || 0,
+          perf: 'query'
+        })
+      )
       if (selectedTable.value) await loadTablePage(tableData.value.page)
     } catch (error) {
       const message = errorMessage(error)
@@ -188,7 +187,11 @@ export function useSqlConsole({
         statements: completed,
         error: message
       })
-      setMessage(wasCancelled ? `查询已取消：已完成 ${completed}/${execution.statements.length} 条 SQL` : message, wasCancelled ? 'warn' : 'error', logContext({operation: mode === 'explain' ? 'explain' : 'execute', scope: execution.scope}))
+      setMessage(
+        wasCancelled ? `查询已取消：已完成 ${completed}/${execution.statements.length} 条 SQL` : message,
+        wasCancelled ? 'warn' : 'error',
+        logContext({operation: mode === 'explain' ? 'explain' : 'execute', scope: execution.scope})
+      )
     } finally {
       runningQueryId.value = ''
       busy.value = false
@@ -196,13 +199,7 @@ export function useSqlConsole({
   }
 
   function resultTabKey({mode, sql, scope, statementIndex}) {
-    return [
-      currentTab.value?.id || 'console',
-      mode,
-      scope,
-      statementIndex,
-      normalizeResultSql(sql)
-    ].join('|')
+    return [currentTab.value?.id || 'console', mode, scope, statementIndex, normalizeResultSql(sql)].join('|')
   }
 
   function syncQuerySelection() {
@@ -265,7 +262,10 @@ export function useSqlConsole({
   function formatQuery() {
     const formatted = query.value
       .replace(/\s+/g, ' ')
-      .replace(/\b(SELECT|FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|INSERT INTO|VALUES|UPDATE|SET|DELETE FROM|LEFT JOIN|RIGHT JOIN|INNER JOIN|JOIN|ON)\b/gi, '\n$1')
+      .replace(
+        /\b(SELECT|FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|INSERT INTO|VALUES|UPDATE|SET|DELETE FROM|LEFT JOIN|RIGHT JOIN|INNER JOIN|JOIN|ON)\b/gi,
+        '\n$1'
+      )
       .replace(/,\s*/g, ',\n  ')
       .replace(/^\n/, '')
       .trim()
@@ -277,9 +277,10 @@ export function useSqlConsole({
     if (!database || !tableName) return
     const table = `\`${database}\`.\`${tableName}\``
     const metadata = tableMetadata.value[metadataKey(profileId, database, tableName)]
-    const sourceColumns = database === selectedDatabase.value && tableName === selectedTable.value && tableData.value.columns.length
-      ? tableData.value.columns
-      : (metadata?.columns || [])
+    const sourceColumns =
+      database === selectedDatabase.value && tableName === selectedTable.value && tableData.value.columns.length
+        ? tableData.value.columns
+        : metadata?.columns || []
     const primaryKeys = sourceColumns.filter((column) => column.key === 'PRI').map((column) => column.name)
     const columns = sourceColumns.map((column) => `\`${column.name}\``)
     const templateMap = {
@@ -328,7 +329,9 @@ export function useSqlConsole({
 
   function exportResultJson(downloadText) {
     if (!resultTabsApi.activeResultTab.value?.columns?.length) return
-    const rows = (resultTabsApi.activeResultTab.value.rows || []).map((row) => Object.fromEntries(resultTabsApi.activeResultTab.value.columns.map((column, index) => [column, row[index]])))
+    const rows = (resultTabsApi.activeResultTab.value.rows || []).map((row) =>
+      Object.fromEntries(resultTabsApi.activeResultTab.value.columns.map((column, index) => [column, row[index]]))
+    )
     downloadText(`${resultTabsApi.activeResultTab.value.title.replace(/\s+/g, '_')}.json`, JSON.stringify(rows, null, 2), 'application/json;charset=utf-8')
     appendLog('success', 'Export SQL result JSON', logContext({rows: rows.length}))
   }

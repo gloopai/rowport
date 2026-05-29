@@ -51,7 +51,7 @@ defineExpose({scrollToBottom})
   padding: 12px;
   overflow: auto;
   color: #b9bdc5;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-size: 13px;
   line-height: 20px;
   user-select: text;

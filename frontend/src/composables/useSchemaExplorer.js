@@ -1,10 +1,5 @@
 import {computed, nextTick, ref} from 'vue'
-import {
-  ListColumns,
-  ListIndexes,
-  ListTables,
-  ShowCreateTable
-} from '../../wailsjs/go/main/App'
+import {ListColumns, ListIndexes, ListTables, ShowCreateTable} from '../../wailsjs/go/main/App'
 
 export function useSchemaExplorer({
   activeProfileId,
@@ -30,7 +25,7 @@ export function useSchemaExplorer({
   setMessage,
   suppressDatabaseWatch,
   syncActiveConnectionState,
-  tableData,
+  tableData: _tableData,
   updateConnectionState
 }) {
   const selectedObject = selectedObjectRef || ref({profileId: '', type: 'table', database: '', table: ''})
@@ -38,8 +33,11 @@ export function useSchemaExplorer({
   const tableMetadata = ref({})
   const tableDDLs = ref({})
 
-  const profileIdValue = () => typeof activeProfileId === 'function' ? activeProfileId() : activeProfileId.value
-  const selectedMetadata = computed(() => tableMetadata.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || {columns: [], indexes: []})
+  const profileIdValue = () => (typeof activeProfileId === 'function' ? activeProfileId() : activeProfileId.value)
+  const selectedMetadata = computed(
+    () =>
+      tableMetadata.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || {columns: [], indexes: []}
+  )
   const structureTitle = computed(() => {
     if (!selectedObject.value.table) return 'Structure'
     if (selectedObject.value.type === 'columns') return `${selectedObject.value.table} / columns`
@@ -84,7 +82,9 @@ export function useSchemaExplorer({
       column.comment
     ])
   })
-  const selectedDDL = computed(() => tableDDLs.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || '')
+  const selectedDDL = computed(
+    () => tableDDLs.value[metadataKey(selectedObject.value.profileId, selectedObject.value.database, selectedObject.value.table)] || ''
+  )
 
   function metadataKey(profileId, database, table) {
     return `${profileId || profileIdValue()}.${database}.${table}`
@@ -94,12 +94,8 @@ export function useSchemaExplorer({
     if (!profileId || !database) return
     const exactKey = table ? metadataKey(profileId, database, table) : ''
     const keyPrefix = `${profileId}.${database}.`
-    tableMetadata.value = Object.fromEntries(
-      Object.entries(tableMetadata.value).filter(([key]) => table ? key !== exactKey : !key.startsWith(keyPrefix))
-    )
-    tableDDLs.value = Object.fromEntries(
-      Object.entries(tableDDLs.value).filter(([key]) => table ? key !== exactKey : !key.startsWith(keyPrefix))
-    )
+    tableMetadata.value = Object.fromEntries(Object.entries(tableMetadata.value).filter(([key]) => (table ? key !== exactKey : !key.startsWith(keyPrefix))))
+    tableDDLs.value = Object.fromEntries(Object.entries(tableDDLs.value).filter(([key]) => (table ? key !== exactKey : !key.startsWith(keyPrefix))))
   }
 
   function clearTableListCache(profileId, database) {
@@ -265,15 +261,16 @@ export function useSchemaExplorer({
       addLog('debug', 'Preview table metadata loaded', logContext({profileId, database, table, elapsedMs: elapsedSince(startedAt)}))
       return
     }
-    const [columns, indexes] = await Promise.all([
-      ListColumns(profileId, database, table),
-      ListIndexes(profileId, database, table)
-    ])
+    const [columns, indexes] = await Promise.all([ListColumns(profileId, database, table), ListIndexes(profileId, database, table)])
     tableMetadata.value = {
       ...tableMetadata.value,
       [key]: {columns, indexes}
     }
-    addLog('success', 'Table metadata loaded', logContext({profileId, database, table, columns: columns.length, indexes: indexes.length, elapsedMs: elapsedSince(startedAt)}))
+    addLog(
+      'success',
+      'Table metadata loaded',
+      logContext({profileId, database, table, columns: columns.length, indexes: indexes.length, elapsedMs: elapsedSince(startedAt)})
+    )
   }
 
   async function loadTableDDL(profileId, database, table) {

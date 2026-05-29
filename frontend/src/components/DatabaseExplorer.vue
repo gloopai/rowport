@@ -94,7 +94,9 @@ const emit = defineEmits([
       <span>Database Explorer</span>
       <div class="window-actions">
         <button title="Add" @click="emit('newProfile')">+</button>
-        <button title="Refresh" :disabled="!activeConnection.status.connected" @click="emit('refreshTables', activeProfileId, selectedDatabase, true)">↻</button>
+        <button title="Refresh" :disabled="!activeConnection.status.connected" @click="emit('refreshTables', activeProfileId, selectedDatabase, true)">
+          ↻
+        </button>
         <button title="Edit" :disabled="!selectedProfile" @click="emit('editProfile', selectedProfile)">⚙</button>
       </div>
     </header>

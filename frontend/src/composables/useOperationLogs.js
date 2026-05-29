@@ -19,33 +19,29 @@ export const perfCategories = [
   {key: 'query', label: '查询'}
 ]
 
-export function useOperationLogs({
-  copyText,
-  downloadText,
-  formatLogTime,
-  logContext,
-  newId
-}) {
+export function useOperationLogs({copyText, downloadText, formatLogTime, logContext, newId}) {
   const operationLogs = ref([])
   const servicesPanelRef = ref(null)
   const logLevelFilter = ref('all')
   const logSearch = ref('')
   const perfMetrics = ref({})
 
-  const perfSummary = computed(() => perfCategories
-    .map(({key, label}) => {
-      const sample = perfMetrics.value[key]
-      if (!sample || !sample.count) return null
-      return {
-        key,
-        label,
-        count: sample.count,
-        lastMs: sample.lastMs,
-        avgMs: Math.round(sample.totalMs / sample.count),
-        maxMs: sample.maxMs
-      }
-    })
-    .filter(Boolean))
+  const perfSummary = computed(() =>
+    perfCategories
+      .map(({key, label}) => {
+        const sample = perfMetrics.value[key]
+        if (!sample || !sample.count) return null
+        return {
+          key,
+          label,
+          count: sample.count,
+          lastMs: sample.lastMs,
+          avgMs: Math.round(sample.totalMs / sample.count),
+          maxMs: sample.maxMs
+        }
+      })
+      .filter(Boolean)
+  )
 
   const latestLog = computed(() => operationLogs.value[operationLogs.value.length - 1])
   const visibleLogs = computed(() => {
@@ -99,10 +95,7 @@ export function useOperationLogs({
     const lines = visibleLogs.value.map((log) => {
       const summary = logContextSummary(log.context)
       const sql = logSql(log.context)
-      return [
-        `[${log.time}] ${log.level.toUpperCase()} ${log.text} ${summary}`.trim(),
-        sql ? `SQL: ${sql}` : ''
-      ].filter(Boolean).join('\n')
+      return [`[${log.time}] ${log.level.toUpperCase()} ${log.text} ${summary}`.trim(), sql ? `SQL: ${sql}` : ''].filter(Boolean).join('\n')
     })
     copyText(lines.join('\n'), '操作日志')
   }
@@ -118,12 +111,7 @@ export function useOperationLogs({
     const headers = ['time', 'level', 'text', 'context']
     const lines = [
       headers.join(','),
-      ...visibleLogs.value.map((log) => [
-        csvValue(log.time),
-        csvValue(log.level),
-        csvValue(log.text),
-        csvValue(logContextSummary(log.context))
-      ].join(','))
+      ...visibleLogs.value.map((log) => [csvValue(log.time), csvValue(log.level), csvValue(log.text), csvValue(logContextSummary(log.context))].join(','))
     ]
     downloadText(`rowport-logs-${Date.now()}.csv`, lines.join('\n'), 'text/csv;charset=utf-8')
     addLog('success', 'Export visible logs CSV', logContext({rows: visibleLogs.value.length}))

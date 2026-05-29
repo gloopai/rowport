@@ -27,13 +27,7 @@ const emit = defineEmits(['activateTab', 'closeTab'])
 
 <template>
   <nav class="editor-tabs">
-    <button
-      v-for="tab in openTabs"
-      :key="tab.id"
-      class="editor-tab"
-      :class="{active: tab.id === activeTabId}"
-      @click="emit('activateTab', tab.id)"
-    >
+    <button v-for="tab in openTabs" :key="tab.id" class="editor-tab" :class="{active: tab.id === activeTabId}" @click="emit('activateTab', tab.id)">
       <span v-if="tab.kind === 'query'" class="mysql-mark">⌁</span>
       <span v-else-if="tab.kind === 'data'" class="table-icon">▦</span>
       <span v-else class="folder-icon">▣</span>

@@ -1,5 +1,7 @@
 export function compactSql(sql) {
-  return String(sql || '').replace(/\s+/g, ' ').trim()
+  return String(sql || '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 export function normalizeResultSql(sql) {
@@ -88,7 +90,7 @@ export function statementSpans(sql) {
       index += 1
       continue
     }
-    if (char === '\'' || char === '"' || char === '`') {
+    if (char === "'" || char === '"' || char === '`') {
       quote = char
       continue
     }

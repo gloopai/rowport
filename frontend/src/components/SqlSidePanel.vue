@@ -30,14 +30,7 @@ defineProps({
   }
 })
 
-const emit = defineEmits([
-  'update:historySearch',
-  'format',
-  'insertTemplate',
-  'toggleSaved',
-  'clearRecent',
-  'chooseHistory'
-])
+const emit = defineEmits(['update:historySearch', 'format', 'insertTemplate', 'toggleSaved', 'clearRecent', 'chooseHistory'])
 </script>
 
 <template>
@@ -69,12 +62,9 @@ const emit = defineEmits([
       </div>
       <div class="history-panel-list saved-history-list">
         <div v-if="!savedQueryHistory.length" class="select-empty">No saved SQL</div>
-        <button
-          v-for="item in savedQueryHistory"
-          :key="item.id"
-          :class="{active: item.id === selectedHistoryId}"
-          @click="emit('chooseHistory', item.id)"
-        >{{ historyOptionLabel(item) }}</button>
+        <button v-for="item in savedQueryHistory" :key="item.id" :class="{active: item.id === selectedHistoryId}" @click="emit('chooseHistory', item.id)">
+          {{ historyOptionLabel(item) }}
+        </button>
       </div>
     </section>
     <section class="tool-panel-section history-panel-section">
@@ -90,15 +80,12 @@ const emit = defineEmits([
         @input="emit('update:historySearch', $event.target.value)"
         @click.stop
         @keydown.stop
-      >
+      />
       <div class="history-panel-list">
         <div v-if="!recentQueryHistory.length" class="select-empty">{{ historySearch ? 'No matching history' : 'No recent history' }}</div>
-        <button
-          v-for="item in recentQueryHistory"
-          :key="item.id"
-          :class="{active: item.id === selectedHistoryId}"
-          @click="emit('chooseHistory', item.id)"
-        >{{ historyOptionLabel(item) }}</button>
+        <button v-for="item in recentQueryHistory" :key="item.id" :class="{active: item.id === selectedHistoryId}" @click="emit('chooseHistory', item.id)">
+          {{ historyOptionLabel(item) }}
+        </button>
       </div>
     </section>
   </aside>

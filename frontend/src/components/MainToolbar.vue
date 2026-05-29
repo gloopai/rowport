@@ -222,5 +222,4 @@ button:disabled {
   color: #ffffff;
   background: rgba(244, 87, 82, 0.28);
 }
-
 </style>

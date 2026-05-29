@@ -487,7 +487,7 @@ SQL 执行：
 
 ### 7.4 SQL 编辑器与查询工作流
 
-- [ ] P1 引入语法高亮 SQL 编辑器。
+- [x] P1 引入语法高亮 SQL 编辑器。（轻量零依赖实现：关键字/字符串/标识符/数字/注释高亮 + 动态行号）
 - [ ] P1 改进 SQL 格式化。
 - [x] P1 支持执行当前语句、选区、全部语句三种模式。
 - [x] P1 查询历史按 profile/database 分组。
@@ -572,7 +572,8 @@ SQL 执行：
 - [x] P0 建立性能基线：启动、schema 展开、表格渲染、查询结果渲染。（操作日志按 perf 标签聚合 startup/connect/schema/tableLoad/query 的最近/平均/峰值，状态栏可见，见 docs/PERFORMANCE.md）
 - [x] P1 拆分 `app.go`，按连接/SSH/schema/数据/凭据分文件。（app.go 1691 行 → 463 行，新增 connection.go/ssh.go/schema.go/tabledata.go/credentials.go）
 - [~] P1 拆分 `frontend/src/App.vue`，降低单文件复杂度。（保守抽取：StatusBar.vue 组件 + appHelpers.js 纯函数模块；后续可继续抽取对话框聚合层）
-- [ ] P1 添加前端 lint/format 工具。
+- [x] P1 添加前端 lint/format 工具。（Prettier + ESLint flat config，npm run lint / format / format:check，CI 集成）
+- [x] P1 SQL 编辑器轻量语法高亮与动态行号。（零依赖 sqlHighlight.js + SqlTextEditor 叠加层）
 - [ ] P1 添加前端单元测试。
 - [ ] P1 添加端到端冒烟测试。
 - [ ] P1 添加测试用 MySQL docker compose。

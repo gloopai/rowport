@@ -56,15 +56,17 @@ const emit = defineEmits(['close', 'submit', 'set-tab', 'test', 'choose-private-
             <h3>MySQL 连接</h3>
             <p>配置服务器地址、账号和默认数据库。密码可选择保存到系统钥匙串。</p>
             <div class="form-grid">
-              <label class="field"><span>连接名称</span><input v-model="draftProfile.name" required data-native-context></label>
-              <label class="field"><span>默认数据库</span><input v-model="draftProfile.database" placeholder="可选" data-native-context></label>
-              <label class="field"><span>主机</span><input v-model="draftProfile.host" required data-native-context></label>
-              <label class="field"><span>端口</span><input v-model="draftProfile.port" required data-native-context></label>
-              <label class="field"><span>用户</span><input v-model="draftProfile.user" required data-native-context></label>
-              <label class="field"><span>密码</span><input v-model="draftProfile.password" type="password" autocomplete="new-password" data-native-context></label>
+              <label class="field"><span>连接名称</span><input v-model="draftProfile.name" required data-native-context /></label>
+              <label class="field"><span>默认数据库</span><input v-model="draftProfile.database" placeholder="可选" data-native-context /></label>
+              <label class="field"><span>主机</span><input v-model="draftProfile.host" required data-native-context /></label>
+              <label class="field"><span>端口</span><input v-model="draftProfile.port" required data-native-context /></label>
+              <label class="field"><span>用户</span><input v-model="draftProfile.user" required data-native-context /></label>
+              <label class="field"
+                ><span>密码</span><input v-model="draftProfile.password" type="password" autocomplete="new-password" data-native-context
+              /></label>
             </div>
             <label class="check-row">
-              <input v-model="draftProfile.rememberPassword" type="checkbox" data-native-context>
+              <input v-model="draftProfile.rememberPassword" type="checkbox" data-native-context />
               <span>保存 MySQL 密码到系统钥匙串</span>
             </label>
           </div>
@@ -73,24 +75,42 @@ const emit = defineEmits(['close', 'submit', 'set-tab', 'test', 'choose-private-
             <h3>SSH 隧道</h3>
             <p>需要通过跳板机访问 MySQL 时启用。可以使用 SSH 密码或私钥路径。</p>
             <label class="check-row enable-row">
-              <input v-model="draftProfile.ssh.enabled" type="checkbox" data-native-context>
+              <input v-model="draftProfile.ssh.enabled" type="checkbox" data-native-context />
               <span>通过 SSH 连接</span>
             </label>
             <div class="form-grid" :class="{muted: !draftProfile.ssh.enabled}">
-              <label class="field"><span>SSH 主机</span><input v-model="draftProfile.ssh.host" :disabled="!draftProfile.ssh.enabled" data-native-context></label>
-              <label class="field"><span>SSH 端口</span><input v-model="draftProfile.ssh.port" :disabled="!draftProfile.ssh.enabled" data-native-context></label>
-              <label class="field"><span>SSH 用户</span><input v-model="draftProfile.ssh.user" :disabled="!draftProfile.ssh.enabled" data-native-context></label>
-              <label class="field"><span>SSH 密码</span><input v-model="draftProfile.ssh.password" :disabled="!draftProfile.ssh.enabled" type="password" data-native-context></label>
+              <label class="field"
+                ><span>SSH 主机</span><input v-model="draftProfile.ssh.host" :disabled="!draftProfile.ssh.enabled" data-native-context
+              /></label>
+              <label class="field"
+                ><span>SSH 端口</span><input v-model="draftProfile.ssh.port" :disabled="!draftProfile.ssh.enabled" data-native-context
+              /></label>
+              <label class="field"
+                ><span>SSH 用户</span><input v-model="draftProfile.ssh.user" :disabled="!draftProfile.ssh.enabled" data-native-context
+              /></label>
+              <label class="field"
+                ><span>SSH 密码</span><input v-model="draftProfile.ssh.password" :disabled="!draftProfile.ssh.enabled" type="password" data-native-context
+              /></label>
               <label class="field wide">
                 <span>私钥路径</span>
                 <div class="input-row">
-                  <input v-model="draftProfile.ssh.privateKeyPath" :disabled="!draftProfile.ssh.enabled" placeholder="~/.ssh/id_rsa" data-native-context>
+                  <input v-model="draftProfile.ssh.privateKeyPath" :disabled="!draftProfile.ssh.enabled" placeholder="~/.ssh/id_rsa" data-native-context />
                   <button type="button" :disabled="!draftProfile.ssh.enabled" @click="emit('choose-private-key')">选择</button>
                 </div>
               </label>
-              <label class="field"><span>私钥口令</span><input v-model="draftProfile.ssh.passphrase" :disabled="!draftProfile.ssh.enabled" type="password" data-native-context></label>
-              <label class="check-row"><input v-model="draftProfile.ssh.rememberPassword" :disabled="!draftProfile.ssh.enabled" type="checkbox" data-native-context><span>保存 SSH 密码</span></label>
-              <label class="check-row"><input v-model="draftProfile.ssh.rememberPassphrase" :disabled="!draftProfile.ssh.enabled" type="checkbox" data-native-context><span>保存私钥口令</span></label>
+              <label class="field"
+                ><span>私钥口令</span><input v-model="draftProfile.ssh.passphrase" :disabled="!draftProfile.ssh.enabled" type="password" data-native-context
+              /></label>
+              <label class="check-row"
+                ><input v-model="draftProfile.ssh.rememberPassword" :disabled="!draftProfile.ssh.enabled" type="checkbox" data-native-context /><span
+                  >保存 SSH 密码</span
+                ></label
+              >
+              <label class="check-row"
+                ><input v-model="draftProfile.ssh.rememberPassphrase" :disabled="!draftProfile.ssh.enabled" type="checkbox" data-native-context /><span
+                  >保存私钥口令</span
+                ></label
+              >
             </div>
             <div class="host-key-row" :class="{muted: !draftProfile.ssh.enabled}">
               <div class="host-key-info">
@@ -103,7 +123,9 @@ const emit = defineEmits(['close', 'submit', 'set-tab', 'test', 'choose-private-
                 class="ghost"
                 :disabled="!draftProfile.ssh.enabled || !draftProfile.ssh.knownHostKey"
                 @click="draftProfile.ssh.knownHostKey = ''"
-              >重置信任</button>
+              >
+                重置信任
+              </button>
             </div>
           </div>
 
@@ -125,19 +147,39 @@ const emit = defineEmits(['close', 'submit', 'set-tab', 'test', 'choose-private-
               </label>
               <label class="field">
                 <span>Server Name</span>
-                <input v-model="draftProfile.tls.serverName" :disabled="draftProfile.tls.mode === 'disabled'" placeholder="默认使用主机名" data-native-context>
+                <input
+                  v-model="draftProfile.tls.serverName"
+                  :disabled="draftProfile.tls.mode === 'disabled'"
+                  placeholder="默认使用主机名"
+                  data-native-context
+                />
               </label>
               <label class="field wide">
                 <span>CA 证书路径</span>
-                <input v-model="draftProfile.tls.caCertPath" :disabled="draftProfile.tls.mode === 'disabled'" placeholder="校验模式下使用，留空则用系统根证书" data-native-context>
+                <input
+                  v-model="draftProfile.tls.caCertPath"
+                  :disabled="draftProfile.tls.mode === 'disabled'"
+                  placeholder="校验模式下使用，留空则用系统根证书"
+                  data-native-context
+                />
               </label>
               <label class="field">
                 <span>客户端证书路径</span>
-                <input v-model="draftProfile.tls.clientCertPath" :disabled="draftProfile.tls.mode === 'disabled'" placeholder="可选（双向 TLS）" data-native-context>
+                <input
+                  v-model="draftProfile.tls.clientCertPath"
+                  :disabled="draftProfile.tls.mode === 'disabled'"
+                  placeholder="可选（双向 TLS）"
+                  data-native-context
+                />
               </label>
               <label class="field">
                 <span>客户端私钥路径</span>
-                <input v-model="draftProfile.tls.clientKeyPath" :disabled="draftProfile.tls.mode === 'disabled'" placeholder="可选（双向 TLS）" data-native-context>
+                <input
+                  v-model="draftProfile.tls.clientKeyPath"
+                  :disabled="draftProfile.tls.mode === 'disabled'"
+                  placeholder="可选（双向 TLS）"
+                  data-native-context
+                />
               </label>
             </div>
           </div>
@@ -148,15 +190,15 @@ const emit = defineEmits(['close', 'submit', 'set-tab', 'test', 'choose-private-
             <div class="form-grid">
               <label class="field">
                 <span>连接超时（秒）</span>
-                <input v-model.number="draftProfile.advanced.connectTimeoutSeconds" min="1" max="120" type="number" data-native-context>
+                <input v-model.number="draftProfile.advanced.connectTimeoutSeconds" min="1" max="120" type="number" data-native-context />
               </label>
               <label class="field">
                 <span>最大连接数</span>
-                <input v-model.number="draftProfile.advanced.maxOpenConns" min="1" max="128" type="number" data-native-context>
+                <input v-model.number="draftProfile.advanced.maxOpenConns" min="1" max="128" type="number" data-native-context />
               </label>
               <label class="field">
                 <span>空闲连接数</span>
-                <input v-model.number="draftProfile.advanced.maxIdleConns" min="0" max="128" type="number" data-native-context>
+                <input v-model.number="draftProfile.advanced.maxIdleConns" min="0" max="128" type="number" data-native-context />
               </label>
               <div class="advanced-list">
                 <div><span>密码存储</span><strong>系统钥匙串</strong></div>

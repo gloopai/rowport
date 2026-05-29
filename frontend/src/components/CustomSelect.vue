@@ -50,18 +50,8 @@ function optionLabel() {
 </script>
 
 <template>
-  <div
-    class="custom-select"
-    :class="{open, disabled, compact, wide, 'field-select': field}"
-    @click.stop
-  >
-    <button
-      class="custom-select-button"
-      type="button"
-      :title="title"
-      :disabled="disabled"
-      @click="emit('toggle')"
-    >
+  <div class="custom-select" :class="{open, disabled, compact, wide, 'field-select': field}" @click.stop>
+    <button class="custom-select-button" type="button" :title="title" :disabled="disabled" @click="emit('toggle')">
       <span>{{ optionLabel() }}</span>
       <span class="select-caret">⌄</span>
     </button>
@@ -72,7 +62,9 @@ function optionLabel() {
         type="button"
         :class="{active: String(option.value) === String(value)}"
         @click="emit('choose', option.value)"
-      >{{ option.label }}</button>
+      >
+        {{ option.label }}
+      </button>
     </div>
   </div>
 </template>

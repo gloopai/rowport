@@ -71,7 +71,7 @@ const emit = defineEmits(['close', 'submit'])
             </span>
           </span>
           <label v-if="isNullableColumn(column)" class="null-toggle" :class="{active: nulls[column.name], disabled: isPrimaryKeyColumn(column)}">
-            <input v-model="nulls[column.name]" type="checkbox" :disabled="isPrimaryKeyColumn(column)" data-native-context>
+            <input v-model="nulls[column.name]" type="checkbox" :disabled="isPrimaryKeyColumn(column)" data-native-context />
             <span>NULL</span>
           </label>
           <textarea
@@ -82,7 +82,7 @@ const emit = defineEmits(['close', 'submit'])
             rows="4"
             data-native-context
           ></textarea>
-          <input v-else v-model="values[column.name]" :disabled="isPrimaryKeyColumn(column) || nulls[column.name]" data-native-context>
+          <input v-else v-model="values[column.name]" :disabled="isPrimaryKeyColumn(column) || nulls[column.name]" data-native-context />
         </div>
       </div>
       <footer>

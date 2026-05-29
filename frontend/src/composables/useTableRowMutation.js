@@ -1,13 +1,6 @@
 import {ref} from 'vue'
 import {DeleteTableRow, InsertTableRow, UpdateTableRow} from '../../wailsjs/go/main/App'
-import {
-  deleteRowLogSql,
-  insertRowLogSql,
-  isNullableColumn,
-  mutationValuesFrom,
-  updateRowLogSql,
-  updateRowPreviewSql
-} from './tableDataUtils'
+import {deleteRowLogSql, insertRowLogSql, isNullableColumn, mutationValuesFrom, updateRowLogSql, updateRowPreviewSql} from './tableDataUtils'
 
 export function useTableRowMutation({
   askConfirm,
@@ -52,11 +45,15 @@ export function useTableRowMutation({
   async function saveInsertRow() {
     const profileId = profileIdValue()
     const values = mutationValuesFrom(insertValues.value, insertNulls.value)
-    addLog('info', 'Insert row', logContext({
-      profileId,
-      columns: Object.keys(values).length,
-      sql: insertRowLogSql(selectedDatabase.value, selectedTable.value, values)
-    }))
+    addLog(
+      'info',
+      'Insert row',
+      logContext({
+        profileId,
+        columns: Object.keys(values).length,
+        sql: insertRowLogSql(selectedDatabase.value, selectedTable.value, values)
+      })
+    )
     busy.value = true
     try {
       await InsertTableRow({
@@ -81,12 +78,18 @@ export function useTableRowMutation({
     const profileId = profileIdValue()
     const values = mutationValuesFrom(editValues.value, editNulls.value)
     const previewSql = updateRowPreviewSql(selectedDatabase.value, selectedTable.value, values, editKeys.value)
-    if (!await askConfirm('更新行', `将执行以下 SQL（直接写入数据库）：\n\n${previewSql}`, '执行更新')) return
-    addLog('info', 'Update row', logContext({
-      profileId,
-      keys: Object.entries(editKeys.value).map(([key, value]) => `${key}=${value}`).join(', '),
-      sql: updateRowLogSql(selectedDatabase.value, selectedTable.value, values, editKeys.value)
-    }))
+    if (!(await askConfirm('更新行', `将执行以下 SQL（直接写入数据库）：\n\n${previewSql}`, '执行更新'))) return
+    addLog(
+      'info',
+      'Update row',
+      logContext({
+        profileId,
+        keys: Object.entries(editKeys.value)
+          .map(([key, value]) => `${key}=${value}`)
+          .join(', '),
+        sql: updateRowLogSql(selectedDatabase.value, selectedTable.value, values, editKeys.value)
+      })
+    )
     busy.value = true
     try {
       await UpdateTableRow({
@@ -110,12 +113,16 @@ export function useTableRowMutation({
     const profileId = profileIdValue()
     const keyValues = Object.fromEntries(tableData.value.primaryKeys.map((key) => [key, row[key]]))
     const previewSql = deleteRowLogSql(selectedDatabase.value, selectedTable.value, keyValues)
-    if (!canMutateRows.value || !await askConfirm('删除行', `将执行以下 SQL（直接写入数据库，不可撤销）：\n\n${previewSql}`, '执行删除')) return
-    addLog('warn', 'Delete row', logContext({
-      profileId,
-      keys: tableData.value.primaryKeys.map((key) => `${key}=${row[key]}`).join(', '),
-      sql: deleteRowLogSql(selectedDatabase.value, selectedTable.value, keyValues)
-    }))
+    if (!canMutateRows.value || !(await askConfirm('删除行', `将执行以下 SQL（直接写入数据库，不可撤销）：\n\n${previewSql}`, '执行删除'))) return
+    addLog(
+      'warn',
+      'Delete row',
+      logContext({
+        profileId,
+        keys: tableData.value.primaryKeys.map((key) => `${key}=${row[key]}`).join(', '),
+        sql: deleteRowLogSql(selectedDatabase.value, selectedTable.value, keyValues)
+      })
+    )
     busy.value = true
     try {
       await DeleteTableRow({
@@ -126,7 +133,15 @@ export function useTableRowMutation({
         values: {}
       })
       await loadTablePage(tableData.value.page)
-      setMessage('行已删除', 'success', logContext({keys: Object.entries(keyValues).map(([key, value]) => `${key}=${value}`).join(', ')}))
+      setMessage(
+        '行已删除',
+        'success',
+        logContext({
+          keys: Object.entries(keyValues)
+            .map(([key, value]) => `${key}=${value}`)
+            .join(', ')
+        })
+      )
     } catch (error) {
       setMessage(errorMessage(error), 'error', logContext({operation: 'deleteRow'}))
     } finally {

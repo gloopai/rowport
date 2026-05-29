@@ -1,14 +1,8 @@
 import {computed, ref} from 'vue'
 
-export function useTableColumnResize({
-  activeProfileId,
-  addLog,
-  logContext,
-  selectedDatabase,
-  selectedTable
-}) {
+export function useTableColumnResize({activeProfileId, addLog, logContext, selectedDatabase, selectedTable}) {
   const columnWidths = ref({})
-  const profileIdValue = () => typeof activeProfileId === 'function' ? activeProfileId() : activeProfileId.value
+  const profileIdValue = () => (typeof activeProfileId === 'function' ? activeProfileId() : activeProfileId.value)
   const currentColumnWidthKey = computed(() => `${profileIdValue()}.${selectedDatabase.value}.${selectedTable.value}`)
   let columnResizeState = null
 

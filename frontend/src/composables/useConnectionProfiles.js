@@ -1,29 +1,8 @@
 import {ref} from 'vue'
-import {
-  ChoosePrivateKeyPath,
-  DeleteCredentials,
-  LoadCredentials,
-  SaveCredentials,
-  TestConnection
-} from '../../wailsjs/go/main/App'
-import {
-  cloneProfile,
-  emptyProfile,
-  loadProfiles,
-  normalizeProfile,
-  persistProfiles
-} from './connectionProfileUtils'
+import {ChoosePrivateKeyPath, DeleteCredentials, LoadCredentials, SaveCredentials, TestConnection} from '../../wailsjs/go/main/App'
+import {cloneProfile, emptyProfile, loadProfiles, normalizeProfile, persistProfiles} from './connectionProfileUtils'
 
-export function useConnectionProfiles({
-  addLog,
-  askConfirm,
-  errorMessage,
-  hasRuntime,
-  logContext,
-  newId,
-  selectedProfileId,
-  setMessage
-}) {
+export function useConnectionProfiles({addLog, askConfirm, errorMessage, hasRuntime, logContext, newId, selectedProfileId, setMessage}) {
   const profiles = ref([])
   const profileDialogOpen = ref(false)
   const draftProfile = ref(emptyProfile(newId))
@@ -99,7 +78,7 @@ export function useConnectionProfiles({
     const nextProfile = normalizeProfile(draftProfile.value, newId)
     nextProfile.name = nextProfile.name.trim() || `${nextProfile.user}@${nextProfile.host}`
     if (editingProfileId.value) {
-      profiles.value = profiles.value.map((item) => item.id === editingProfileId.value ? nextProfile : item)
+      profiles.value = profiles.value.map((item) => (item.id === editingProfileId.value ? nextProfile : item))
     } else {
       profiles.value.unshift(nextProfile)
     }
@@ -126,18 +105,14 @@ export function useConnectionProfiles({
     const profile = profiles.value.find((item) => item.id === profileId)
     if (!profile || profile.ssh?.knownHostKey === key) return
     const isNew = !profile.ssh?.knownHostKey
-    profiles.value = profiles.value.map((item) => (
-      item.id === profileId
-        ? {...item, ssh: {...item.ssh, knownHostKey: key}}
-        : item
-    ))
+    profiles.value = profiles.value.map((item) => (item.id === profileId ? {...item, ssh: {...item.ssh, knownHostKey: key}} : item))
     persistProfiles(profiles.value)
     addLog(isNew ? 'info' : 'warn', isNew ? 'Trust SSH host key (first use)' : 'Update trusted SSH host key', logContext({profileId}))
   }
 
   async function removeProfile(profile) {
     addLog('warn', 'Request delete server profile', logContext({profile: profile.name}))
-    if (!await askConfirm('删除连接', `确定删除连接 "${profile.name}"？保存的钥匙串密码也会一并删除。`, '删除')) return
+    if (!(await askConfirm('删除连接', `确定删除连接 "${profile.name}"？保存的钥匙串密码也会一并删除。`, '删除'))) return
     profiles.value = profiles.value.filter((item) => item.id !== profile.id)
     if (selectedProfileId.value === profile.id) {
       selectedProfileId.value = profiles.value[0]?.id || ''

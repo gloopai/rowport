@@ -2,6 +2,8 @@
 import {ref} from 'vue'
 import CustomSelect from './CustomSelect.vue'
 
+const nullLabel = '<null>'
+
 defineProps({
   tableWhere: {
     type: String,
@@ -123,13 +125,7 @@ defineExpose({scrollToTop})
   <div class="data-surface" @click="emit('clearSelection')">
     <div class="filter-row" @click.stop>
       <span>⌁ WHERE</span>
-      <input
-        class="inline-filter"
-        :value="tableWhere"
-        placeholder="e.g. id > 10"
-        data-native-context
-        @input="emit('update:tableWhere', $event.target.value)"
-      >
+      <input class="inline-filter" :value="tableWhere" placeholder="e.g. id > 10" data-native-context @input="emit('update:tableWhere', $event.target.value)" />
       <button :disabled="!selectedTable || !tableData.columns.length" @click="emit('openFilterDialog')">Filter</button>
       <span>≡ ORDER BY</span>
       <CustomSelect
@@ -175,7 +171,11 @@ defineExpose({scrollToTop})
         <thead>
           <tr>
             <th class="row-num"></th>
-            <th v-for="column in tableData.columns" :key="column.name" :style="{width: `${columnWidth(column.name)}px`, minWidth: `${columnWidth(column.name)}px`}">
+            <th
+              v-for="column in tableData.columns"
+              :key="column.name"
+              :style="{width: `${columnWidth(column.name)}px`, minWidth: `${columnWidth(column.name)}px`}"
+            >
               <span class="col-name" :style="{width: `${columnWidth(column.name)}px`}">{{ column.name }}</span>
               <span class="filter-mark">▽</span>
               <span class="column-resizer" @mousedown="emit('beginColumnResize', column.name, $event)"></span>
@@ -195,7 +195,13 @@ defineExpose({scrollToTop})
             @dblclick="emit('openEditRow', item.row)"
           >
             <td class="row-num">{{ (tableData.page - 1) * tableData.pageSize + item.index + 1 }}</td>
-            <td v-for="column in tableData.columns" :key="column.name" :style="{width: `${columnWidth(column.name)}px`, minWidth: `${columnWidth(column.name)}px`}">{{ item.row[column.name] ?? '<null>' }}</td>
+            <td
+              v-for="column in tableData.columns"
+              :key="column.name"
+              :style="{width: `${columnWidth(column.name)}px`, minWidth: `${columnWidth(column.name)}px`}"
+            >
+              {{ item.row[column.name] ?? nullLabel }}
+            </td>
             <td class="row-actions">
               <button :disabled="!canMutateRows" @click.stop="emit('openEditRow', item.row)">Edit</button>
               <button :disabled="!canMutateRows" @click.stop="emit('deleteRow', item.row)">Delete</button>
@@ -331,7 +337,7 @@ button:disabled {
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-size: 13px;
 }
 

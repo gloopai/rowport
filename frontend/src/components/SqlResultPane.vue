@@ -1,6 +1,8 @@
 <script setup>
 import {ref} from 'vue'
 
+const nullLabel = '<null>'
+
 defineProps({
   resultTabs: {
     type: Array,
@@ -36,15 +38,7 @@ defineProps({
   }
 })
 
-const emit = defineEmits([
-  'activateTab',
-  'closeTab',
-  'copyRows',
-  'exportCsv',
-  'exportJson',
-  'openRowDetail',
-  'scroll'
-])
+const emit = defineEmits(['activateTab', 'closeTab', 'copyRows', 'exportCsv', 'exportJson', 'openRowDetail', 'scroll'])
 
 const resultGridRef = ref(null)
 
@@ -93,7 +87,7 @@ defineExpose({scrollToTop})
           </tr>
           <tr v-for="item in virtualResultRows.items" :key="item.index" @dblclick="emit('openRowDetail', item.row, item.index)">
             <td class="row-num">{{ item.index + 1 }}</td>
-            <td v-for="(value, cellIndex) in item.row" :key="cellIndex">{{ value ?? '<null>' }}</td>
+            <td v-for="(value, cellIndex) in item.row" :key="cellIndex">{{ value ?? nullLabel }}</td>
           </tr>
           <tr v-if="resultBottomSpacerHeight" class="virtual-spacer-row">
             <td :colspan="resultGridColspan" :style="{height: `${resultBottomSpacerHeight}px`}"></td>
@@ -205,7 +199,7 @@ defineExpose({scrollToTop})
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-size: 13px;
 }
 

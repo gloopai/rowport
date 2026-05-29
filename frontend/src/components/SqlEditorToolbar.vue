@@ -48,7 +48,9 @@ defineExpose({getElement})
       </button>
       <button class="toolbar-action" :disabled="busy" title="Run statement at cursor" @click="emit('run', 'current')">Current</button>
       <button class="toolbar-action" :disabled="busy" title="Run every SQL statement in the editor" @click="emit('run', 'all')">All</button>
-      <button class="toolbar-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" @click="emit('explain', 'smart')">Explain</button>
+      <button class="toolbar-action" :disabled="busy" title="Run EXPLAIN for selected SQL or statement at cursor" @click="emit('explain', 'smart')">
+        Explain
+      </button>
       <button class="toolbar-action" title="Open SQL file" @click="emit('openSql')">
         <span class="open-icon"></span>
         <span>Open</span>

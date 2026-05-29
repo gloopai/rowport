@@ -70,7 +70,7 @@ const editableColumns = computed(() => props.columns.filter((item) => !String(it
             </span>
           </span>
           <label v-if="isNullableColumn(column)" class="null-toggle" :class="{active: nulls[column.name]}">
-            <input v-model="nulls[column.name]" type="checkbox" data-native-context>
+            <input v-model="nulls[column.name]" type="checkbox" data-native-context />
             <span>NULL</span>
           </label>
           <textarea
@@ -82,7 +82,7 @@ const editableColumns = computed(() => props.columns.filter((item) => !String(it
             rows="4"
             data-native-context
           ></textarea>
-          <input v-else v-model="values[column.name]" :disabled="nulls[column.name]" :placeholder="column.type" data-native-context>
+          <input v-else v-model="values[column.name]" :disabled="nulls[column.name]" :placeholder="column.type" data-native-context />
         </div>
       </div>
       <footer>

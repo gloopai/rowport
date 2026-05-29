@@ -1,7 +1,6 @@
 <script setup>
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import DatabaseExplorer from './components/DatabaseExplorer.vue'
-import CustomSelect from './components/CustomSelect.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import DataTableView from './components/DataTableView.vue'
 import EditorTabs from './components/EditorTabs.vue'
@@ -70,76 +69,57 @@ const {
   logContext,
   newId
 })
-const {
-  message,
-  confirmDialogOpen,
-  confirmDialog,
-  setMessage,
-  askConfirm,
-  resolveConfirm,
-  copyText,
-  downloadText,
-  errorMessage
-} = useAppFeedback({
+const {confirmDialogOpen, confirmDialog, setMessage, askConfirm, resolveConfirm, copyText, downloadText, errorMessage} = useAppFeedback({
   addLog,
   logContext
 })
 appActions.copyText = copyText
 appActions.downloadText = downloadText
-const {
-  openTabs,
-  activeTabId,
-  currentTab,
-  tabTitle,
-  openConsoleTab,
-  openDataTab,
-  openStructureTab,
-  activateTab,
-  closeTab,
-  insertDdlTemplate
-} = useWorkspaceTabs({
-  activeProfileId: () => activeProfileId.value,
-  addLog,
-  loadTableDDL: (...args) => loadTableDDL(...args),
-  loadTableMetadata: (...args) => loadTableMetadata(...args),
-  loadTablePage: (...args) => loadTablePage(...args),
-  logContext,
-  metadataKey: (...args) => metadataKey(...args),
-  profileById: (...args) => profileById(...args),
-  queryRef: {
-    get value() {
-      return query.value
+const {openTabs, activeTabId, currentTab, tabTitle, openConsoleTab, openDataTab, openStructureTab, activateTab, closeTab, insertDdlTemplate} = useWorkspaceTabs(
+  {
+    activeProfileId: () => activeProfileId.value,
+    addLog,
+    loadTableDDL: (...args) => loadTableDDL(...args),
+    loadTableMetadata: (...args) => loadTableMetadata(...args),
+    loadTablePage: (...args) => loadTablePage(...args),
+    logContext,
+    metadataKey: (...args) => metadataKey(...args),
+    profileById: (...args) => profileById(...args),
+    queryRef: {
+      get value() {
+        return query.value
+      },
+      set value(value) {
+        query.value = value
+      }
     },
-    set value(value) {
-      query.value = value
-    }
-  },
-  refreshTables: (...args) => refreshTables(...args),
-  selectedDatabase,
-  selectedObject,
-  selectedProfile: () => selectedProfile.value,
-  selectedProfileId: {
-    get value() {
-      return selectedProfileId.value
+    refreshTables: (...args) => refreshTables(...args),
+    selectedDatabase,
+    selectedObject,
+    selectedProfile: () => selectedProfile.value,
+    selectedProfileId: {
+      get value() {
+        return selectedProfileId.value
+      },
+      set value(value) {
+        selectedProfileId.value = value
+      }
     },
-    set value(value) {
-      selectedProfileId.value = value
-    }
-  },
-  selectedTable,
-  suppressDatabaseWatch,
-  syncActiveConnectionState: (...args) => syncActiveConnectionState(...args),
-  tableData: {
-    get value() {
-      return tableData.value
-    }
-  },
-  tableMetadata: {
-    get value() {
-      return tableMetadata.value
+    selectedTable,
+    suppressDatabaseWatch,
+    syncActiveConnectionState: (...args) => syncActiveConnectionState(...args),
+    tableData: {
+      get value() {
+        return tableData.value
+      }
+    },
+    tableMetadata: {
+      get value() {
+        return tableMetadata.value
+      }
     }
   }
-})
+)
 const {
   dataTableViewRef,
   dataGridScrollTop,
@@ -151,7 +131,6 @@ const {
   editDialogOpen,
   editValues,
   editNulls,
-  editKeys,
   insertDialogOpen,
   insertValues,
   insertNulls,
@@ -327,15 +306,7 @@ const {
   perfStart,
   elapsedSince
 })
-const {
-  shellColumns,
-  mainRows,
-  servicesColumns,
-  queryMainRows,
-  loadLayout,
-  beginResize,
-  resetPaneSize
-} = useLayoutResize()
+const {shellColumns, mainRows, servicesColumns, queryMainRows, loadLayout, beginResize, resetPaneSize} = useLayoutResize()
 const {
   query,
   queryEditorRef,
@@ -403,14 +374,7 @@ const {
   virtualRows,
   rowHeight: VIRTUAL_ROW_HEIGHT
 })
-const {
-  virtualDataRows,
-  dataTopSpacerHeight,
-  dataBottomSpacerHeight,
-  dataGridColspan,
-  handleDataGridScroll,
-  resetGridScroll
-} = useVirtualGrid({
+const {virtualDataRows, dataTopSpacerHeight, dataBottomSpacerHeight, dataGridColspan, handleDataGridScroll, resetGridScroll} = useVirtualGrid({
   dataGridScrollTop,
   dataTableViewRef,
   resetResultGridScroll,
@@ -458,13 +422,7 @@ const {
   logLevelFilter,
   selectedDatabase
 })
-const {
-  queryRows,
-  closeSurfaceOverlays,
-  observeQueryToolbar,
-  bindSurfaceEvents,
-  unbindSurfaceEvents
-} = useAppSurface({
+const {queryRows, closeSurfaceOverlays, observeQueryToolbar, bindSurfaceEvents, unbindSurfaceEvents} = useAppSurface({
   closeContextMenu,
   closeCustomSelect,
   queryToolbarRef
@@ -478,12 +436,12 @@ function chooseTlsMode(value) {
   closeCustomSelect()
 }
 const tableIsReadOnly = computed(() => Boolean(selectedTable.value) && tableData.value.columns.length > 0 && !canMutateRows.value)
-const perfStatusText = computed(() => perfSummary.value
-  .map((metric) => `${metric.label} ${metric.lastMs}ms`)
-  .join(' · '))
-const perfStatusTitle = computed(() => perfSummary.value
-  .map((metric) => `${metric.label}：最近 ${metric.lastMs}ms · 平均 ${metric.avgMs}ms · 峰值 ${metric.maxMs}ms · ${metric.count} 次`)
-  .join('\n'))
+const perfStatusText = computed(() => perfSummary.value.map((metric) => `${metric.label} ${metric.lastMs}ms`).join(' · '))
+const perfStatusTitle = computed(() =>
+  perfSummary.value
+    .map((metric) => `${metric.label}：最近 ${metric.lastMs}ms · 平均 ${metric.avgMs}ms · 峰值 ${metric.maxMs}ms · ${metric.count} 次`)
+    .join('\n')
+)
 onMounted(async () => {
   loadLayout()
   bindSurfaceEvents()
@@ -517,7 +475,6 @@ function logContext(extra = {}) {
     ...extra
   }
 }
-
 </script>
 
 <template>
@@ -618,12 +575,7 @@ function logContext(extra = {}) {
           />
           <div class="query-workspace">
             <div class="query-main-stack" :style="{gridTemplateRows: queryMainRows}">
-              <SqlTextEditor
-                ref="queryEditorRef"
-                v-model="query"
-                @keydown="handleQueryKeydown"
-                @selection-change="syncQuerySelection"
-              />
+              <SqlTextEditor ref="queryEditorRef" v-model="query" @keydown="handleQueryKeydown" @selection-change="syncQuerySelection" />
               <div
                 class="resize-handle horizontal query-result-resizer"
                 title="Drag to resize SQL results"
@@ -810,11 +762,7 @@ function logContext(extra = {}) {
       @submit="saveInsertRow"
     />
 
-    <ConfirmDialog
-      :open="confirmDialogOpen"
-      :dialog="confirmDialog"
-      @resolve="resolveConfirm"
-    />
+    <ConfirmDialog :open="confirmDialogOpen" :dialog="confirmDialog" @resolve="resolveConfirm" />
 
     <FilterDialog
       :open="filterDialogOpen"
@@ -832,11 +780,7 @@ function logContext(extra = {}) {
       @choose-operator="chooseFilterOperator"
     />
 
-    <ResultDetailDialog
-      :open="resultDetailOpen"
-      :detail="resultDetail"
-      @close="resultDetailOpen = false"
-    />
+    <ResultDetailDialog :open="resultDetailOpen" :detail="resultDetail" @close="resultDetailOpen = false" />
 
     <ImportCsvDialog
       :open="importDialogOpen"

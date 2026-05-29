@@ -105,10 +105,7 @@ defineExpose({scrollToBottom})
       @load-table-page="emit('loadTablePage', $event)"
     />
     <div class="services-body" :style="{gridTemplateColumns: servicesColumns}">
-      <ServicesTree
-        :selected-profile="selectedProfile"
-        :selected-table="selectedTable"
-      />
+      <ServicesTree :selected-profile="selectedProfile" :selected-table="selectedTable" />
       <div
         class="resize-handle vertical services-tree-resizer"
         title="Drag to resize Services tree"

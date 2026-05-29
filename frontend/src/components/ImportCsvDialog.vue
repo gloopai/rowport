@@ -1,4 +1,6 @@
 <script setup>
+const emptyLabel = '<empty>'
+
 defineProps({
   open: {
     type: Boolean,
@@ -48,7 +50,7 @@ const emit = defineEmits(['close', 'confirm'])
             <tbody>
               <tr v-for="(row, rowIndex) in preview.previewRows" :key="rowIndex">
                 <td class="row-num">{{ rowIndex + 1 }}</td>
-                <td v-for="(value, cellIndex) in row" :key="cellIndex">{{ value || '<empty>' }}</td>
+                <td v-for="(value, cellIndex) in row" :key="cellIndex">{{ value || emptyLabel }}</td>
               </tr>
             </tbody>
           </table>

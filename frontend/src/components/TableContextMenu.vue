@@ -10,24 +10,12 @@ defineProps({
   }
 })
 
-const emit = defineEmits([
-  'open-data',
-  'open-structure',
-  'copy-name',
-  'insert-sql',
-  'insert-ddl'
-])
+const emit = defineEmits(['open-data', 'open-structure', 'copy-name', 'insert-sql', 'insert-ddl'])
 </script>
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="open"
-      class="context-menu"
-      :style="menuStyle"
-      @click.stop
-      @contextmenu.prevent.stop
-    >
+    <div v-if="open" class="context-menu" :style="menuStyle" @click.stop @contextmenu.prevent.stop>
       <button @click="emit('open-data')">Open Data</button>
       <button @click="emit('open-structure', 'columns')">Columns</button>
       <button @click="emit('open-structure', 'indexes')">Indexes</button>

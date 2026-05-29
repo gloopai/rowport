@@ -35,17 +35,11 @@ defineProps({
 const emit = defineEmits(['toggleExpanded', 'selectTable', 'openTableContextMenu', 'selectTableObject'])
 
 function isSelectedTable(profileId, databaseName, tableName, currentTab) {
-  return currentTab?.profileId === profileId &&
-    currentTab?.kind === 'data' &&
-    currentTab.table === tableName &&
-    currentTab.database === databaseName
+  return currentTab?.profileId === profileId && currentTab?.kind === 'data' && currentTab.table === tableName && currentTab.database === databaseName
 }
 
 function isActiveStructureParent(profileId, databaseName, tableName, currentTab) {
-  return currentTab?.profileId === profileId &&
-    currentTab?.kind === 'structure' &&
-    currentTab.table === tableName &&
-    currentTab.database === databaseName
+  return currentTab?.profileId === profileId && currentTab?.kind === 'structure' && currentTab.table === tableName && currentTab.database === databaseName
 }
 </script>
 
@@ -60,7 +54,9 @@ function isActiveStructureParent(profileId, databaseName, tableName, currentTab)
       @click="emit('selectTable', table, databaseName, profileId)"
       @contextmenu.prevent="emit('openTableContextMenu', profileId, databaseName, table.name, $event)"
     >
-      <span class="tree-expander" @click.stop="emit('toggleExpanded', 'table', profileId, databaseName, table.name)">{{ isExpanded('table', profileId, databaseName, table.name) ? '⌄' : '›' }}</span>
+      <span class="tree-expander" @click.stop="emit('toggleExpanded', 'table', profileId, databaseName, table.name)">{{
+        isExpanded('table', profileId, databaseName, table.name) ? '⌄' : '›'
+      }}</span>
       <span class="tree-icon icon-table"></span>
       <span class="tree-label">{{ table.name }}</span>
     </button>

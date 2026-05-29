@@ -1,12 +1,6 @@
 import {computed, ref} from 'vue'
 import {GetTableData} from '../../wailsjs/go/main/App'
-import {
-  demoTableData,
-  isLongTextColumn,
-  isNullableColumn,
-  tableCellText,
-  tablePageLogSql
-} from './tableDataUtils'
+import {demoTableData, isLongTextColumn, isNullableColumn, tableCellText, tablePageLogSql} from './tableDataUtils'
 import {useTableColumnResize} from './useTableColumnResize'
 import {useTableCsvImport} from './useTableCsvImport'
 import {useTableExport} from './useTableExport'
@@ -38,23 +32,15 @@ export function useTableData({
   const tableOrderBy = ref('')
   const tableOrderDir = ref('ASC')
 
-  const profileIdValue = () => typeof activeProfileId === 'function' ? activeProfileId() : activeProfileId.value
+  const profileIdValue = () => (typeof activeProfileId === 'function' ? activeProfileId() : activeProfileId.value)
   const totalPages = computed(() => Math.max(1, Math.ceil((tableData.value.total || 0) / tableData.value.pageSize)))
   const canMutateRows = computed(() => tableData.value.primaryKeys?.length > 0)
-  const selectedRow = computed(() => selectedRowIndex.value >= 0 ? tableData.value.rows?.[selectedRowIndex.value] : null)
-  const selectedRowsCount = computed(() => selectedRow.value ? 1 : 0)
+  const selectedRow = computed(() => (selectedRowIndex.value >= 0 ? tableData.value.rows?.[selectedRowIndex.value] : null))
+  const selectedRowsCount = computed(() => (selectedRow.value ? 1 : 0))
   const canEditSelectedRow = computed(() => canMutateRows.value && Boolean(selectedRow.value))
   const canDeleteSelectedRow = computed(() => canMutateRows.value && Boolean(selectedRow.value))
-  const orderByOptions = computed(() => [
-    {label: 'none', value: ''},
-    ...tableData.value.columns.map((column) => ({label: column.name, value: column.name}))
-  ])
-  const {
-    columnWidths,
-    currentColumnWidthKey,
-    columnWidth,
-    beginColumnResize
-  } = useTableColumnResize({
+  const orderByOptions = computed(() => [{label: 'none', value: ''}, ...tableData.value.columns.map((column) => ({label: column.name, value: column.name}))])
+  const {columnWidths, currentColumnWidthKey, columnWidth, beginColumnResize} = useTableColumnResize({
     activeProfileId,
     addLog,
     logContext,
@@ -79,12 +65,7 @@ export function useTableData({
     tableData,
     tableWhere
   })
-  const {
-    copySelectedRow,
-    copyVisibleRows,
-    exportVisibleCsv,
-    exportVisibleJson
-  } = useTableExport({
+  const {copySelectedRow, copyVisibleRows, exportVisibleCsv, exportVisibleJson} = useTableExport({
     addLog,
     copyText,
     downloadText,
@@ -94,12 +75,7 @@ export function useTableData({
     selectedTable,
     tableData
   })
-  const {
-    importDialogOpen,
-    importPreview,
-    openCsvImportPreview,
-    confirmCsvImport
-  } = useTableCsvImport({
+  const {importDialogOpen, importPreview, openCsvImportPreview, confirmCsvImport} = useTableCsvImport({
     askConfirm,
     busy,
     errorMessage,
@@ -145,21 +121,25 @@ export function useTableData({
     if (!selectedDatabase.value || !selectedTable.value) return
     const startedAt = perfStart()
     const profileId = profileIdValue()
-    addLog('info', 'Load table page', logContext({
-      profileId,
-      page,
-      pageSize: tableData.value.pageSize,
-      sql: tablePageLogSql({
-        database: selectedDatabase.value,
-        table: selectedTable.value,
-        columns: tableData.value.columns,
-        where: tableWhere.value,
-        orderBy: tableOrderBy.value,
-        orderDir: tableOrderDir.value,
+    addLog(
+      'info',
+      'Load table page',
+      logContext({
+        profileId,
         page,
-        pageSize: Number(tableData.value.pageSize || 50)
+        pageSize: tableData.value.pageSize,
+        sql: tablePageLogSql({
+          database: selectedDatabase.value,
+          table: selectedTable.value,
+          columns: tableData.value.columns,
+          where: tableWhere.value,
+          orderBy: tableOrderBy.value,
+          orderDir: tableOrderDir.value,
+          page,
+          pageSize: Number(tableData.value.pageSize || 50)
+        })
       })
-    }))
+    )
     if (!hasRuntime()) {
       tableData.value = demoTableData(page, tableData.value.pageSize)
       selectedRowIndex.value = -1
@@ -181,7 +161,17 @@ export function useTableData({
       })
       selectedRowIndex.value = -1
       resetGridScroll('data')
-      addLog('success', 'Table page loaded', logContext({page: tableData.value.page, rows: tableData.value.rows.length, total: tableData.value.total, elapsedMs: elapsedSince(startedAt), perf: 'tableLoad'}))
+      addLog(
+        'success',
+        'Table page loaded',
+        logContext({
+          page: tableData.value.page,
+          rows: tableData.value.rows.length,
+          total: tableData.value.total,
+          elapsedMs: elapsedSince(startedAt),
+          perf: 'tableLoad'
+        })
+      )
     } catch (error) {
       setMessage(errorMessage(error), 'error', logContext({operation: 'loadTablePage'}))
     } finally {
@@ -317,5 +307,4 @@ export function useTableData({
     resetTableView,
     demoTableData
   }
-
 }

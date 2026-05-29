@@ -1,11 +1,5 @@
 import {computed, nextTick, ref} from 'vue'
-import {
-  Connect,
-  DisconnectProfile,
-  InspectSSHHostKey,
-  ListDatabases,
-  Status
-} from '../../wailsjs/go/main/App'
+import {Connect, DisconnectProfile, InspectSSHHostKey, ListDatabases, Status} from '../../wailsjs/go/main/App'
 import {cloneProfile} from './connectionProfileUtils'
 import {useConnectionProfiles} from './useConnectionProfiles'
 import {useConnectionState} from './useConnectionState'
@@ -135,14 +129,23 @@ export function useConnections({
     if (!selectedProfile.value) return
     const startedAt = perfStart()
     const profileId = selectedProfile.value.id
-    addLog('info', 'Connect server', logContext({profileId, profile: selectedProfile.value.name, host: selectedProfile.value.host, port: selectedProfile.value.port}))
+    addLog(
+      'info',
+      'Connect server',
+      logContext({profileId, profile: selectedProfile.value.name, host: selectedProfile.value.host, port: selectedProfile.value.port})
+    )
     busy.value = true
     try {
       if (!hasRuntime()) {
         suppressDatabaseWatch.value = true
         setExpanded(true, 'server', selectedProfile.value.id)
         connectedProfileId.value = selectedProfile.value.id
-        const previewStatus = {connected: true, user: selectedProfile.value.user, server: `${selectedProfile.value.host}:${selectedProfile.value.port}`, viaSsh: selectedProfile.value.ssh.enabled}
+        const previewStatus = {
+          connected: true,
+          user: selectedProfile.value.user,
+          server: `${selectedProfile.value.host}:${selectedProfile.value.port}`,
+          viaSsh: selectedProfile.value.ssh.enabled
+        }
         const previewDatabases = [{name: 'demo'}, {name: 'information_schema'}]
         const previewTableCache = {demo: [{name: 'users', type: 'BASE TABLE', rows: 128, engine: 'InnoDB'}]}
         updateConnectionState(profileId, {status: previewStatus, databases: previewDatabases, tableCache: previewTableCache})

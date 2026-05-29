@@ -23,6 +23,8 @@ The format loosely follows Keep a Changelog, and this project is preparing for i
 - Build and release guide (`docs/RELEASE.md`) covering the Wails compiler wrapper and macOS build steps.
 - SQL preview in the row update and delete confirmation dialogs showing the exact statement that will run.
 - Read-only treatment for tables without a primary key: a toolbar badge explains why and insert/edit/delete are disabled.
+- Frontend lint/format tooling (Prettier + ESLint) with CI checks.
+- Lightweight SQL editor syntax highlighting and dynamic line numbers (zero extra dependencies).
 - MySQL SSL/TLS connection modes (preferred, required, verify-ca, verify-identity) with CA, client certificate, and server name options, surfaced in the connection status.
 - Friendly connection error classification (timeout, refused, host not found, authentication, permission, TLS, SSH).
 - Go unit tests covering config normalization, DSN/TLS building, identifier quoting, where filtering, error classification, and SSH auth/host key handling.

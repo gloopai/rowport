@@ -1,13 +1,6 @@
 import {computed, nextTick, ref} from 'vue'
 
-export function useResultTabs({
-  newId,
-  resultTabKey,
-  formatLogTime,
-  virtualRows,
-  rowHeight,
-  resultPaneRef
-}) {
+export function useResultTabs({newId, resultTabKey, formatLogTime, virtualRows, rowHeight, resultPaneRef}) {
   const resultGridScrollTop = ref(0)
   const resultTabs = ref([])
   const activeResultTabId = ref('')
@@ -33,9 +26,7 @@ export function useResultTabs({
   function appendResultTab({mode, sql, result, scope = 'statement', statementIndex = 0}) {
     const tabKey = resultTabKey({mode, sql, scope, statementIndex})
     const existingIndex = resultTabs.value.findIndex((tab) => tab.key === tabKey)
-    const title = existingIndex >= 0
-      ? resultTabs.value[existingIndex].title
-      : `${mode === 'explain' ? 'Explain' : 'Result'} ${resultTabs.value.length + 1}`
+    const title = existingIndex >= 0 ? resultTabs.value[existingIndex].title : `${mode === 'explain' ? 'Explain' : 'Result'} ${resultTabs.value.length + 1}`
     const tab = {
       id: existingIndex >= 0 ? resultTabs.value[existingIndex].id : newId(),
       key: tabKey,

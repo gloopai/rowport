@@ -1,15 +1,7 @@
 import {computed, ref} from 'vue'
 import {quoteIdentifier, sqlLiteral} from './tableDataUtils'
 
-export function useTableFilterBuilder({
-  addLog,
-  loadTablePage,
-  logContext,
-  selectedTable,
-  setMessage,
-  tableData,
-  tableWhere
-}) {
+export function useTableFilterBuilder({addLog, loadTablePage, logContext, selectedTable, setMessage, tableData, tableWhere}) {
   const filterDialogOpen = ref(false)
   const filterDraft = ref({column: '', operator: '=', value: '', value2: ''})
   const filterColumnOptions = computed(() => tableData.value.columns.map((column) => ({label: `${column.name}  ${column.type}`, value: column.name})))

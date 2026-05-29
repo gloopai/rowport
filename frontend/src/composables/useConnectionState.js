@@ -1,9 +1,6 @@
 import {computed, ref} from 'vue'
 
-export function useConnectionState({
-  currentTab,
-  selectedProfileId
-}) {
+export function useConnectionState({currentTab, selectedProfileId}) {
   const connectedProfileId = ref('')
   const status = ref({connected: false})
   const connectionStates = ref({})

@@ -36,13 +36,7 @@ defineProps({
   }
 })
 
-const emit = defineEmits([
-  'close',
-  'submit',
-  'toggle-select',
-  'choose-column',
-  'choose-operator'
-])
+const emit = defineEmits(['close', 'submit', 'toggle-select', 'choose-column', 'choose-operator'])
 </script>
 
 <template>
@@ -82,11 +76,11 @@ const emit = defineEmits([
         </label>
         <label v-if="!['IS NULL', 'IS NOT NULL'].includes(draft.operator)" class="field wide">
           <span>{{ draft.operator === 'BETWEEN' ? '起始值' : '值' }}</span>
-          <input v-model="draft.value" data-native-context>
+          <input v-model="draft.value" data-native-context />
         </label>
         <label v-if="draft.operator === 'BETWEEN'" class="field wide">
           <span>结束值</span>
-          <input v-model="draft.value2" data-native-context>
+          <input v-model="draft.value2" data-native-context />
         </label>
         <div class="filter-preview wide">
           <span>WHERE</span>

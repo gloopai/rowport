@@ -59,13 +59,7 @@ const emit = defineEmits([
         @toggle="emit('toggleSelect', 'logLevel')"
         @choose="emit('chooseLogLevel', $event)"
       />
-      <input
-        :value="logSearch"
-        class="log-search"
-        placeholder="Search logs"
-        data-native-context
-        @input="emit('update:logSearch', $event.target.value)"
-      >
+      <input :value="logSearch" class="log-search" placeholder="Search logs" data-native-context @input="emit('update:logSearch', $event.target.value)" />
       <button title="Copy visible logs" :disabled="!visibleLogsCount" @click="emit('copyVisibleLogs')">⧉</button>
       <button title="Export visible logs as CSV" :disabled="!visibleLogsCount" @click="emit('exportVisibleLogsCsv')">CSV</button>
       <button title="Export visible logs as JSON" :disabled="!visibleLogsCount" @click="emit('exportVisibleLogsJson')">JSON</button>

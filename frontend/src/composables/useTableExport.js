@@ -1,15 +1,6 @@
 import {csvEscape} from './tableDataUtils'
 
-export function useTableExport({
-  addLog,
-  copyText,
-  downloadText,
-  logContext,
-  selectedDatabase,
-  selectedRow,
-  selectedTable,
-  tableData
-}) {
+export function useTableExport({addLog, copyText, downloadText, logContext, selectedDatabase, selectedRow, selectedTable, tableData}) {
   function copySelectedRow() {
     if (!selectedRow.value) return
     copyText(tableRowsToCsv([selectedRow.value]), '选中行')

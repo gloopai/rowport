@@ -1,10 +1,6 @@
 import {computed, nextTick, ref} from 'vue'
 
-export function useAppSurface({
-  closeContextMenu,
-  closeCustomSelect,
-  queryToolbarRef
-}) {
+export function useAppSurface({closeContextMenu, closeCustomSelect, queryToolbarRef}) {
   const queryToolbarHeight = ref(40)
   const queryRows = computed(() => `${queryToolbarHeight.value}px minmax(0, 1fr)`)
   let queryToolbarObserver = null

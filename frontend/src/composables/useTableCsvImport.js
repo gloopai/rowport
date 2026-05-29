@@ -46,7 +46,14 @@ export function useTableCsvImport({
       setMessage('CSV 表头没有匹配当前表字段', 'error', logContext({operation: 'csvImport'}))
       return
     }
-    if (!await askConfirm('导入 CSV', `将向 ${selectedDatabase.value}.${selectedTable.value} 导入 ${importPreview.value.total} 行，匹配字段：${importColumns.join(', ')}。确定继续？`, '导入')) return
+    if (
+      !(await askConfirm(
+        '导入 CSV',
+        `将向 ${selectedDatabase.value}.${selectedTable.value} 导入 ${importPreview.value.total} 行，匹配字段：${importColumns.join(', ')}。确定继续？`,
+        '导入'
+      ))
+    )
+      return
     busy.value = true
     try {
       const affected = await BulkInsertRows({
@@ -68,7 +75,9 @@ export function useTableCsvImport({
   function importRowsFromPreview() {
     const tableColumns = new Set(tableData.value.columns.map((column) => column.name))
     const importColumns = importPreview.value.columns.filter((column) => tableColumns.has(column))
-    return (importPreview.value.rows || []).map((row) => Object.fromEntries(importColumns.map((column) => [column, row[importPreview.value.columns.indexOf(column)] ?? null])))
+    return (importPreview.value.rows || []).map((row) =>
+      Object.fromEntries(importColumns.map((column) => [column, row[importPreview.value.columns.indexOf(column)] ?? null]))
+    )
   }
 
   return {

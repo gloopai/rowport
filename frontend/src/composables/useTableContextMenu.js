@@ -3,16 +3,7 @@ import {computed, ref} from 'vue'
 const MENU_WIDTH = 220
 const MENU_MAX_HEIGHT = 420
 
-export function useTableContextMenu({
-  addLog,
-  copyText,
-  insertDdlTemplate,
-  insertSqlTemplate,
-  loadTableMetadata,
-  logContext,
-  selectTable,
-  selectTableObject
-}) {
+export function useTableContextMenu({addLog, copyText, insertDdlTemplate, insertSqlTemplate, loadTableMetadata, logContext, selectTable, selectTableObject}) {
   const contextMenu = ref({open: false, x: 0, y: 0, profileId: '', database: '', table: ''})
 
   const contextMenuStyle = computed(() => ({

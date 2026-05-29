@@ -33,12 +33,15 @@ export function useLayoutResize() {
   }
 
   function persistLayout() {
-    localStorage.setItem(LAYOUT_KEY, JSON.stringify({
-      explorerWidth: explorerWidth.value,
-      servicesHeight: servicesHeight.value,
-      servicesTreeWidth: servicesTreeWidth.value,
-      queryResultHeight: queryResultHeight.value
-    }))
+    localStorage.setItem(
+      LAYOUT_KEY,
+      JSON.stringify({
+        explorerWidth: explorerWidth.value,
+        servicesHeight: servicesHeight.value,
+        servicesTreeWidth: servicesTreeWidth.value,
+        queryResultHeight: queryResultHeight.value
+      })
+    )
   }
 
   function beginResize(kind, event) {
