@@ -30,6 +30,7 @@ The format loosely follows Keep a Changelog, and this project is preparing for i
 ### Changed
 
 - Renamed persisted identifiers from `mysql-gui` to `rowport` (Keychain service and local storage keys) with automatic migration of existing data.
+- Split the monolithic `app.go` into focused files (connection, SSH, schema, table data, credentials) without behavior changes.
 
 ### Fixed
 
