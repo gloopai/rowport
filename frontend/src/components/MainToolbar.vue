@@ -50,6 +50,10 @@ defineProps({
     type: Boolean,
     default: false
   },
+  tableReadOnly: {
+    type: Boolean,
+    default: false
+  },
   activeProfileId: {
     type: String,
     default: ''
@@ -96,7 +100,8 @@ const emit = defineEmits([
     />
     <span class="toolbar-mode">Tx: Auto</span>
     <button :disabled="!selectedTable" @click="emit('loadTablePage', tablePage)">↻</button>
-    <button :disabled="!selectedTable" @click="emit('openInsertRow')">+</button>
+    <button :disabled="!selectedTable || tableReadOnly" :title="tableReadOnly ? '无主键表为只读' : '新增行'" @click="emit('openInsertRow')">+</button>
+    <span v-if="tableReadOnly" class="readonly-chip" title="该表没有主键，无法安全定位单行，已设为只读">无主键 · 只读</span>
     <template v-if="selectedRow">
       <span class="selection-chip">已选 {{ selectedRowsCount }} 行</span>
       <button class="icon-tool" title="编辑选中行" :disabled="!canEditSelectedRow" @click="emit('editSelectedRow')">✎</button>
@@ -175,6 +180,18 @@ button:disabled {
   color: #b9c7dc;
   background: #303641;
   border: 1px solid #465066;
+  border-radius: 4px;
+}
+
+.readonly-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 7px;
+  color: #e0c08a;
+  cursor: default;
+  background: #3a3326;
+  border: 1px solid #6b5a36;
   border-radius: 4px;
 }
 

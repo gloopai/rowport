@@ -478,6 +478,7 @@ function chooseTlsMode(value) {
   draftProfile.value.tls.mode = value
   closeCustomSelect()
 }
+const tableIsReadOnly = computed(() => Boolean(selectedTable.value) && tableData.value.columns.length > 0 && !canMutateRows.value)
 const perfStatusText = computed(() => perfSummary.value
   .map((metric) => `${metric.label} ${metric.lastMs}ms`)
   .join(' · '))
@@ -599,6 +600,7 @@ function elapsedSince(startedAt) {
         :selected-rows-count="selectedRowsCount"
         :can-edit-selected-row="canEditSelectedRow"
         :can-delete-selected-row="canDeleteSelectedRow"
+        :table-read-only="tableIsReadOnly"
         :active-profile-id="activeProfileId"
         :page-size-options="pageSizeOptions"
         :page-size="tableData.pageSize"

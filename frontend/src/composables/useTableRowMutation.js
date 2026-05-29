@@ -5,7 +5,8 @@ import {
   insertRowLogSql,
   isNullableColumn,
   mutationValuesFrom,
-  updateRowLogSql
+  updateRowLogSql,
+  updateRowPreviewSql
 } from './tableDataUtils'
 
 export function useTableRowMutation({
@@ -76,8 +77,11 @@ export function useTableRowMutation({
   }
 
   async function saveRow() {
+    if (!canMutateRows.value) return
     const profileId = profileIdValue()
     const values = mutationValuesFrom(editValues.value, editNulls.value)
+    const previewSql = updateRowPreviewSql(selectedDatabase.value, selectedTable.value, values, editKeys.value)
+    if (!await askConfirm('更新行', `将执行以下 SQL（直接写入数据库）：\n\n${previewSql}`, '执行更新')) return
     addLog('info', 'Update row', logContext({
       profileId,
       keys: Object.entries(editKeys.value).map(([key, value]) => `${key}=${value}`).join(', '),
@@ -105,7 +109,8 @@ export function useTableRowMutation({
   async function deleteRow(row) {
     const profileId = profileIdValue()
     const keyValues = Object.fromEntries(tableData.value.primaryKeys.map((key) => [key, row[key]]))
-    if (!canMutateRows.value || !await askConfirm('删除行', '确定删除选中的一行数据？这个操作会直接写入数据库。', '删除')) return
+    const previewSql = deleteRowLogSql(selectedDatabase.value, selectedTable.value, keyValues)
+    if (!canMutateRows.value || !await askConfirm('删除行', `将执行以下 SQL（直接写入数据库，不可撤销）：\n\n${previewSql}`, '执行删除')) return
     addLog('warn', 'Delete row', logContext({
       profileId,
       keys: tableData.value.primaryKeys.map((key) => `${key}=${row[key]}`).join(', '),

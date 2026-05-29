@@ -21,6 +21,8 @@ The format loosely follows Keep a Changelog, and this project is preparing for i
 - Interactive SSH host key confirmation: before connecting, the host key is inspected and an untrusted or changed fingerprint must be confirmed, then pinned to the profile.
 - Performance baseline that aggregates startup, connect, schema, table, and query timings into a status-bar readout.
 - Build and release guide (`docs/RELEASE.md`) covering the Wails compiler wrapper and macOS build steps.
+- SQL preview in the row update and delete confirmation dialogs showing the exact statement that will run.
+- Read-only treatment for tables without a primary key: a toolbar badge explains why and insert/edit/delete are disabled.
 - MySQL SSL/TLS connection modes (preferred, required, verify-ca, verify-identity) with CA, client certificate, and server name options, surfaced in the connection status.
 - Friendly connection error classification (timeout, refused, host not found, authentication, permission, TLS, SSH).
 - Go unit tests covering config normalization, DSN/TLS building, identifier quoting, where filtering, error classification, and SSH auth/host key handling.

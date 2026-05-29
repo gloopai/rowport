@@ -74,6 +74,19 @@ export function deleteRowLogSql(database, table, keyValues) {
   return `DELETE FROM ${quoteSqlIdentifier(database)}.${quoteSqlIdentifier(table)} WHERE ${whereClause} LIMIT 1`
 }
 
+// Preview variants inline the literal values (instead of `?` placeholders) so
+// the confirmation dialog shows exactly what will be written.
+export function updateRowPreviewSql(database, table, values, keyValues) {
+  const setClause = Object.keys(values || {})
+    .filter((column) => !Object.prototype.hasOwnProperty.call(keyValues || {}, column))
+    .map((column) => `${quoteSqlIdentifier(column)} = ${logSqlLiteral(values[column])}`)
+    .join(', ')
+  const whereClause = Object.keys(keyValues || {})
+    .map((column) => `${quoteSqlIdentifier(column)} = ${logSqlLiteral(keyValues[column])}`)
+    .join(' AND ')
+  return `UPDATE ${quoteSqlIdentifier(database)}.${quoteSqlIdentifier(table)} SET ${setClause} WHERE ${whereClause} LIMIT 1`
+}
+
 export function tableCellText(value) {
   if (value === null || value === undefined) return ''
   if (typeof value === 'object') return JSON.stringify(value)
