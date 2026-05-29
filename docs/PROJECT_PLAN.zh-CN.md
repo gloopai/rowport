@@ -148,7 +148,7 @@ SQL 控制台：
 
 安全与连接：
 
-- SSH host key verification 已实现：校验 `~/.ssh/known_hosts` 并对 profile 钉扎的密钥做信任首次使用；密钥变更会硬失败。仍缺少交互式首次指纹确认对话框。
+- SSH host key verification 已实现：校验 `~/.ssh/known_hosts` 并对 profile 钉扎的密钥做信任首次使用；密钥变更会硬失败。连接前会预检主机密钥，未信任或已变更时弹出交互式指纹确认对话框。
 - SSL/TLS 连接选项已实现：支持 disabled/preferred/required/verify-ca/verify-identity，以及 CA、客户端证书、server name 配置。
 - 凭据持久化目前只针对 macOS Keychain；Windows Credential Manager 和 Linux Secret Service 尚未实现。
 - profile 数据放在 local storage，缺少迁移机制、导入导出和版本化结构。
@@ -462,7 +462,7 @@ SQL 执行：
 - [x] P0 实现 MySQL SSL/TLS 基础配置。（disabled/preferred/required/verify-ca/verify-identity + CA/客户端证书/server name）
 - [x] P0 增加连接配置中的 TLS 状态展示。（连接状态栏显示 TLS/SSH 标记）
 - [x] P1 增加 known_hosts 管理。（读取 ~/.ssh/known_hosts 校验，host key 变更硬失败）
-- [ ] P1 增加首次连接 host fingerprint 确认流程。（当前为信任首次使用，尚无交互式指纹确认对话框）
+- [x] P1 增加首次连接 host fingerprint 确认流程。（连接前 InspectSSHHostKey 预检，未信任/已变更时弹出指纹确认对话框，确认后钉扎到 profile）
 - [ ] P1 增加 Keychain 读写错误的可见提示。
 - [ ] P1 为 Windows Credential Manager 设计接口。
 - [ ] P1 为 Linux Secret Service 设计接口。

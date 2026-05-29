@@ -54,6 +54,10 @@ export function InsertTableRow(arg1) {
   return window['go']['main']['App']['InsertTableRow'](arg1);
 }
 
+export function InspectSSHHostKey(arg1) {
+  return window['go']['main']['App']['InspectSSHHostKey'](arg1);
+}
+
 export function ListColumns(arg1, arg2, arg3) {
   return window['go']['main']['App']['ListColumns'](arg1, arg2, arg3);
 }

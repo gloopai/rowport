@@ -398,3 +398,25 @@ func TestHostKeyCallback(t *testing.T) {
 		t.Error("mismatching pinned key should be rejected")
 	}
 }
+
+func TestEvaluateHostKey(t *testing.T) {
+	signer := newTestSigner(t)
+	key := signer.PublicKey()
+	addr := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 22}
+
+	// No pin: unknown first use requires confirmation but is not a change.
+	if good, changed := evaluateHostKey(SSHConfig{}, "example.com:22", addr, key); good || changed {
+		t.Errorf("unknown key should be (false,false), got (%v,%v)", good, changed)
+	}
+
+	// Matching pin: trusted, no confirmation needed.
+	if good, changed := evaluateHostKey(SSHConfig{KnownHostKey: hostKeyString(key)}, "example.com:22", addr, key); !good || changed {
+		t.Errorf("matching pin should be (true,false), got (%v,%v)", good, changed)
+	}
+
+	// Mismatching pin: not trusted and flagged as changed.
+	other := newTestSigner(t)
+	if good, changed := evaluateHostKey(SSHConfig{KnownHostKey: hostKeyString(other.PublicKey())}, "example.com:22", addr, key); good || !changed {
+		t.Errorf("mismatching pin should be (false,true), got (%v,%v)", good, changed)
+	}
+}

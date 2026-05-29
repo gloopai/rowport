@@ -18,6 +18,9 @@ The format loosely follows Keep a Changelog, and this project is preparing for i
 - Resizable desktop layout with schema explorer, editor/results area, and operation logs.
 - GitHub issue templates, pull request template, and CI for frontend build plus Go tests.
 - SSH host key verification using `~/.ssh/known_hosts` plus per-profile trust-on-first-use pinning; a changed key blocks the connection.
+- Interactive SSH host key confirmation: before connecting, the host key is inspected and an untrusted or changed fingerprint must be confirmed, then pinned to the profile.
+- Performance baseline that aggregates startup, connect, schema, table, and query timings into a status-bar readout.
+- Build and release guide (`docs/RELEASE.md`) covering the Wails compiler wrapper and macOS build steps.
 - MySQL SSL/TLS connection modes (preferred, required, verify-ca, verify-identity) with CA, client certificate, and server name options, surfaced in the connection status.
 - Friendly connection error classification (timeout, refused, host not found, authentication, permission, TLS, SSH).
 - Go unit tests covering config normalization, DSN/TLS building, identifier quoting, where filtering, error classification, and SSH auth/host key handling.
@@ -33,5 +36,4 @@ The format loosely follows Keep a Changelog, and this project is preparing for i
 ### Known Gaps
 
 - Prebuilt releases are not published yet.
-- SSH host key verification has no interactive first-time fingerprint confirmation dialog yet (trust-on-first-use is automatic).
 - Credential persistence is currently macOS-focused.

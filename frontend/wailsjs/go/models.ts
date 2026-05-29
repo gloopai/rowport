@@ -198,6 +198,26 @@ export namespace main {
 	        this.name = source["name"];
 	    }
 	}
+	export class HostKeyPrompt {
+	    required: boolean;
+	    changed: boolean;
+	    host: string;
+	    fingerprint: string;
+	    key: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostKeyPrompt(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.required = source["required"];
+	        this.changed = source["changed"];
+	        this.host = source["host"];
+	        this.fingerprint = source["fingerprint"];
+	        this.key = source["key"];
+	    }
+	}
 	export class IndexInfo {
 	    indexName: string;
 	    columnName: string;

@@ -28,6 +28,8 @@ export function GetTableData(arg1:main.TableDataRequest):Promise<main.TableDataR
 
 export function InsertTableRow(arg1:main.RowMutation):Promise<number>;
 
+export function InspectSSHHostKey(arg1:main.ConnectionConfig):Promise<main.HostKeyPrompt>;
+
 export function ListColumns(arg1:string,arg2:string,arg3:string):Promise<Array<main.ColumnInfo>>;
 
 export function ListDatabases(arg1:string):Promise<Array<main.DatabaseInfo>>;

@@ -98,6 +98,16 @@ type ConnectionStatus struct {
 	HostKey   string `json:"hostKey"`
 }
 
+// HostKeyPrompt describes the SSH host key the frontend should ask the user to
+// confirm before connecting. Required is false when the key is already trusted.
+type HostKeyPrompt struct {
+	Required    bool   `json:"required"`
+	Changed     bool   `json:"changed"`
+	Host        string `json:"host"`
+	Fingerprint string `json:"fingerprint"`
+	Key         string `json:"key"`
+}
+
 type DatabaseInfo struct {
 	Name string `json:"name"`
 }
@@ -357,6 +367,51 @@ func (a *App) DeleteCredentials(profileID string) error {
 	deleteKeychainSecret(profileID, "ssh-password")
 	deleteKeychainSecret(profileID, "ssh-passphrase")
 	return nil
+}
+
+var errHostKeyInspected = errors.New("host key inspected")
+
+// InspectSSHHostKey performs an SSH handshake just far enough to read the
+// server host key, then aborts before authentication (so no valid credentials
+// are required). It reports whether the user must confirm the key before
+// connecting. When SSH is disabled it returns an empty, non-required prompt.
+func (a *App) InspectSSHHostKey(config ConnectionConfig) (HostKeyPrompt, error) {
+	config = normalizeConfig(config)
+	if !config.SSH.Enabled || config.SSH.Host == "" {
+		return HostKeyPrompt{}, nil
+	}
+
+	var captured ssh.PublicKey
+	var capturedRemote net.Addr
+	sshConfig := &ssh.ClientConfig{
+		User: config.SSH.User,
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			captured = key
+			capturedRemote = remote
+			return errHostKeyInspected
+		},
+		Timeout: 12 * time.Second,
+	}
+
+	client, err := ssh.Dial("tcp", net.JoinHostPort(config.SSH.Host, config.SSH.Port), sshConfig)
+	if client != nil {
+		_ = client.Close()
+	}
+	if captured == nil {
+		if err == nil {
+			return HostKeyPrompt{}, errors.New("ssh server did not present a host key")
+		}
+		return HostKeyPrompt{}, classifyConnectionError(err)
+	}
+
+	knownGood, changed := evaluateHostKey(config.SSH, net.JoinHostPort(config.SSH.Host, config.SSH.Port), capturedRemote, captured)
+	return HostKeyPrompt{
+		Required:    !knownGood,
+		Changed:     changed,
+		Host:        net.JoinHostPort(config.SSH.Host, config.SSH.Port),
+		Fingerprint: ssh.FingerprintSHA256(captured),
+		Key:         hostKeyString(captured),
+	}, nil
 }
 
 func (a *App) ChoosePrivateKeyPath() (string, error) {
@@ -1317,29 +1372,42 @@ func buildHostKeyCallback(config SSHConfig, observed *string) ssh.HostKeyCallbac
 		if observed != nil {
 			*observed = hostKeyString(key)
 		}
-
-		if systemCallback, err := systemKnownHostsCallback(); err == nil && systemCallback != nil {
-			switch verifyErr := systemCallback(hostname, remote, key); {
-			case verifyErr == nil:
-				return nil
-			default:
-				var keyErr *knownhosts.KeyError
-				if errors.As(verifyErr, &keyErr) && len(keyErr.Want) > 0 {
-					return fmt.Errorf("ssh host key mismatch for %s: the key differs from ~/.ssh/known_hosts (possible man-in-the-middle); fingerprint %s", hostname, ssh.FingerprintSHA256(key))
-				}
-				// Host absent from known_hosts (or unreadable): fall back to the pin.
-			}
+		knownGood, changed := evaluateHostKey(config, hostname, remote, key)
+		if changed {
+			return fmt.Errorf("ssh host key mismatch for %s: the key changed since it was trusted (possible man-in-the-middle); fingerprint %s", hostname, ssh.FingerprintSHA256(key))
 		}
-
-		pinned := strings.TrimSpace(config.KnownHostKey)
-		if pinned == "" {
-			return nil
-		}
-		if hostKeysEqual(pinned, key) {
-			return nil
-		}
-		return fmt.Errorf("ssh host key mismatch for %s: the key changed since it was trusted (possible man-in-the-middle); fingerprint %s", hostname, ssh.FingerprintSHA256(key))
+		// knownGood or unknown first-use are both accepted here; the frontend
+		// drives the interactive confirmation for unknown keys before connecting.
+		_ = knownGood
+		return nil
 	}
+}
+
+// evaluateHostKey classifies a presented host key. knownGood is true when the
+// key is already trusted (system known_hosts or the per-profile pin); changed
+// is true when a previously trusted key no longer matches.
+func evaluateHostKey(config SSHConfig, hostname string, remote net.Addr, key ssh.PublicKey) (knownGood bool, changed bool) {
+	if systemCallback, err := systemKnownHostsCallback(); err == nil && systemCallback != nil {
+		switch verifyErr := systemCallback(hostname, remote, key); {
+		case verifyErr == nil:
+			return true, false
+		default:
+			var keyErr *knownhosts.KeyError
+			if errors.As(verifyErr, &keyErr) && len(keyErr.Want) > 0 {
+				return false, true
+			}
+			// Host absent from known_hosts (or unreadable): fall back to the pin.
+		}
+	}
+
+	pinned := strings.TrimSpace(config.KnownHostKey)
+	if pinned == "" {
+		return false, false
+	}
+	if hostKeysEqual(pinned, key) {
+		return true, false
+	}
+	return false, true
 }
 
 func systemKnownHostsCallback() (ssh.HostKeyCallback, error) {

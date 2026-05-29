@@ -25,7 +25,7 @@ The goal is a modern desktop experience in the spirit of tools like DataGrip, wh
 
 - Connect to MySQL with host, port, user, password, and an optional default database.
 - Save and switch between multiple server profiles.
-- Connect through an SSH tunnel with password auth, private key text, or a private key path, with host key verification (known_hosts plus per-profile trust-on-first-use).
+- Connect through an SSH tunnel with password auth, private key text, or a private key path, with host key verification (known_hosts plus per-profile trust-on-first-use) and an interactive fingerprint confirmation dialog for untrusted or changed keys.
 - Encrypt MySQL connections with SSL/TLS (preferred, required, verify-ca, verify-identity) and optional CA, client certificate, and server name.
 - Store remembered MySQL passwords, SSH passwords, and SSH key passphrases in macOS Keychain.
 - Browse databases, tables, columns, indexes, primary keys, and table DDL.
@@ -41,7 +41,7 @@ The goal is a modern desktop experience in the spirit of tools like DataGrip, wh
 
 RowPort is early preview / pre-release software, but already usable. The core connection, schema browsing, table data, row mutation, SQL console, query cancellation, profile management, SSH tunnel, MySQL SSL/TLS, SSH host key verification, import/export, and log workflows are implemented.
 
-Packaging, release automation, cross-platform credential storage, an interactive SSH fingerprint confirmation dialog, and richer result tools are still planned.
+Packaging, release automation, cross-platform credential storage, and richer result tools are still planned.
 
 ## Platform Support
 
@@ -153,7 +153,7 @@ go test ./...
 
 ## Roadmap
 
-- Add an interactive SSH host fingerprint confirmation dialog and known_hosts management UI.
+- Add a known_hosts management UI for reviewing and revoking trusted host keys.
 - Add richer query history, saved snippets, and result tools.
 - Add saved snippets and more result export tools.
 - Add release builds for macOS and Windows.

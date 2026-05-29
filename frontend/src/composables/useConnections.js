@@ -2,6 +2,7 @@ import {computed, nextTick, ref} from 'vue'
 import {
   Connect,
   DisconnectProfile,
+  InspectSSHHostKey,
   ListDatabases,
   Status
 } from '../../wailsjs/go/main/App'
@@ -105,6 +106,31 @@ export function useConnections({
     addLog('debug', 'Select server profile', logContext({profile: profile.name, host: profile.host}))
   }
 
+  async function confirmSshHostKey(connection, profileId) {
+    let prompt
+    try {
+      prompt = await InspectSSHHostKey(connection)
+    } catch (error) {
+      setMessage(errorMessage(error), 'error', logContext({operation: 'inspectHostKey', profileId}))
+      return false
+    }
+    if (!prompt?.required) return true
+
+    const title = prompt.changed ? 'SSH 主机密钥已变更' : '确认 SSH 主机密钥'
+    const reason = prompt.changed
+      ? '该主机密钥与此前信任的不一致，可能存在中间人攻击。仅在你确认服务器密钥确实已更换时才继续。'
+      : '首次连接此主机。请核对指纹与服务器实际指纹一致后再信任。'
+    const body = `${prompt.host}\n指纹 ${prompt.fingerprint}\n\n${reason}`
+    const accepted = await askConfirm(title, body, '信任并连接')
+    if (!accepted) {
+      addLog('warn', 'Reject SSH host key', logContext({profileId, fingerprint: prompt.fingerprint, changed: prompt.changed}))
+      return false
+    }
+    connection.ssh.knownHostKey = prompt.key
+    pinHostKey(profileId, prompt.key)
+    return true
+  }
+
   async function connectSelected() {
     if (!selectedProfile.value) return
     const startedAt = perfStart()
@@ -133,6 +159,13 @@ export function useConnections({
       }
 
       const connection = cloneProfile(selectedProfile.value)
+      if (connection.ssh?.enabled) {
+        const confirmed = await confirmSshHostKey(connection, profileId)
+        if (!confirmed) {
+          setMessage('已取消连接：未确认 SSH 主机密钥', 'warn', logContext({profileId}))
+          return
+        }
+      }
       const nextStatus = await Connect(connection)
       if (connection.ssh?.enabled && nextStatus.hostKey) {
         pinHostKey(profileId, nextStatus.hostKey)
